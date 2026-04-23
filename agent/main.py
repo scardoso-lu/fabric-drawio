@@ -22,7 +22,7 @@ from .tools import TOOL_SCHEMAS, dispatch_tool
 
 load_dotenv()
 
-SYSTEM_PROMPT = """You are a Principal Data Architect specialising in Microsoft Fabric
+_BASE_SYSTEM_PROMPT = """You are a Principal Data Architect specialising in Microsoft Fabric
 Medallion Architecture (Bronze / Silver / Gold). Your job each run:
 
 1. Call list_devops_epics to get all epics (optionally filtered by area_path / state).
@@ -30,23 +30,29 @@ Medallion Architecture (Bronze / Silver / Gold). Your job each run:
    already exist in the workspace.
 3. For each epic call get_epic_details to read its title, description, and acceptance
    criteria.
-4. Reason about the appropriate medallion architecture for that epic:
-   - Map data sources from the epic description to DATA SOURCES nodes.
-   - Decide which existing Fabric resources (lakehouses, pipelines, notebooks) belong
-     in Bronze / Silver / Gold. Reuse existing resource names where appropriate.
-   - Add a SERVING layer with semantic models or reports as implied by the epic.
-   - Define edges (from, to, label) for every data-flow hop.
-5. Call generate_diagram for the epic. All node names must be plain text —
-   absolutely no HTML tags in any label.
-6. After all epics are processed, output a short summary: list each epic ID + title
-   and the filename of the diagram generated.
-
-Rules:
-- Never invent Fabric resources that were not found in get_fabric_context or implied
-  by the epic requirements.
-- If an epic has no clear data-engineering scope, skip it and explain why.
-- One diagram per epic; do not batch multiple epics into one diagram.
+4. Reason about the appropriate medallion architecture for that epic, strictly following
+   all skills loaded below.
+5. Call generate_diagram for the epic.
+6. After all epics are processed, output a short summary: list each epic ID + title,
+   the filename generated, and any assumptions or skipped epics with reasons.
 """
+
+
+def _load_skills(skills_dir: Path) -> str:
+    """Read every SKILL.md under skills_dir and return them as a single prompt block."""
+    blocks: list[str] = []
+    for skill_file in sorted(skills_dir.rglob("SKILL.md")):
+        relative = skill_file.relative_to(skills_dir)
+        content = skill_file.read_text(encoding="utf-8").strip()
+        blocks.append(f"### Skill: {relative.parent}\n\n{content}")
+    if not blocks:
+        return ""
+    joined = "\n\n---\n\n".join(blocks)
+    return f"\n\n## Active Skills (constraints you must respect)\n\n{joined}"
+
+
+def _build_system_prompt(skills_dir: Path) -> str:
+    return _BASE_SYSTEM_PROMPT + _load_skills(skills_dir)
 
 
 def _require(var: str) -> str:
@@ -58,6 +64,11 @@ def _require(var: str) -> str:
 
 
 def run(area_path: str | None = None, state: str | None = None) -> None:
+    skills_dir = Path(__file__).parent.parent / "skills"
+    system_prompt = _build_system_prompt(skills_dir)
+    skill_count = sum(1 for _ in skills_dir.rglob("SKILL.md"))
+    print(f"Loaded {skill_count} skill(s) from {skills_dir}")
+
     devops = DevOpsClient(
         org=_require("AZURE_DEVOPS_ORG"),
         project=_require("AZURE_DEVOPS_PROJECT"),
@@ -87,7 +98,7 @@ def run(area_path: str | None = None, state: str | None = None) -> None:
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=8096,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             tools=TOOL_SCHEMAS,
             messages=messages,
         )
