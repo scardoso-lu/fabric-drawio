@@ -1,0 +1,33 @@
+[project]
+name = "fabric-drawio"
+version = "0.1.0"
+description = "AI agent that generates Fabric Medallion Architecture draw.io diagrams from Azure DevOps epics"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.49.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+fabric-agent = "agent.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.9.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
