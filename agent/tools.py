@@ -2,9 +2,9 @@ import json
 import os
 from pathlib import Path
 
-from .devops_client import DevOpsClient
-from .fabric_client import FabricClient
-from .diagram import build_drawio, slugify
+from devops.client import DevOpsClient
+from fabric.client import FabricClient
+from drawio.builder import build_drawio, slugify
 
 # ── Tool schemas (passed to Claude) ──────────────────────────────────────────
 

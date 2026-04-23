@@ -16,8 +16,8 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
-from .devops_client import DevOpsClient
-from .fabric_client import FabricClient
+from devops.client import DevOpsClient
+from fabric.client import FabricClient
 from .tools import TOOL_SCHEMAS, dispatch_tool
 
 load_dotenv()
