@@ -1,6 +1,8 @@
 # fabric-drawio
 
-AI agent that reads **Azure DevOps epics** and your live **Microsoft Fabric workspace**, then generates one editable **`.drawio` medallion architecture diagram per epic**.
+AI agent that reads **Azure DevOps epics** and your live **Microsoft Purview Data Map**, then generates one editable **`.drawio` medallion architecture diagram per epic**.
+
+Supports **single-workspace** diagrams (one Fabric workspace) and **cross-workspace** diagrams (Bronze in one workspace feeding Silver/Gold in another).
 
 Built with Claude (`claude-sonnet-4-6`) using the Anthropic tool-use API and the [speckit](https://github.com/github/spec-kit) skills pattern for constraint enforcement.
 
@@ -14,19 +16,19 @@ Azure DevOps epics
        ▼
   agent/main.py  ──── skills/*.SKILL.md (constraints)
        │
-       ├─ devops/client.py   →  list epics, fetch details
-       ├─ fabric/client.py   →  snapshot workspace (lakehouses, pipelines, notebooks)
-       └─ drawio/builder.py  →  generate .drawio XML
+       ├─ devops/client.py    →  list epics, fetch details
+       ├─ purview/client.py   →  list collections, query assets, infer lineage
+       └─ drawio/builder.py   →  generate .drawio XML
               │
               ▼
        output/{epic-id}-{slug}.drawio
 ```
 
 For each eligible epic Claude:
-1. Extracts data sources, transformations, and serving outputs from the epic text
-2. Maps them to real Fabric resources in your workspace
-3. Calls `generate_diagram` with a structured spec
-4. The diagram builder writes a 5-zone left-to-right `.drawio` file
+1. Calls `list_purview_collections` to understand available workspace scopes
+2. Queries assets from one or more collections (single or cross-workspace mode)
+3. Reads the epic text and maps it to real Purview-catalogued assets
+4. Calls `generate_diagram` with a structured spec — the builder writes the `.drawio` file
 
 ---
 
@@ -36,17 +38,18 @@ For each eligible epic Claude:
 fabric-drawio/
 ├── agent/
 │   ├── main.py        # Agentic loop + CLI entry point
-│   └── tools.py       # Claude tool schemas + dispatcher
+│   └── tools.py       # Claude tool schemas + dispatcher (6 tools)
 ├── devops/
 │   └── client.py      # Azure DevOps REST API (WIQL, work items)
-├── fabric/
-│   └── client.py      # Fabric REST API (auth, lakehouses, pipelines, notebooks)
+├── purview/
+│   └── client.py      # Purview Data Map API (collections, assets, lineage)
 ├── drawio/
 │   └── builder.py     # Deterministic draw.io XML builder
 ├── skills/            # Speckit-pattern constraint skills (loaded at runtime)
 │   ├── medallion-architecture/SKILL.md
 │   ├── drawio-constraints/SKILL.md
-│   ├── fabric-resource-governance/SKILL.md
+│   ├── purview-asset-governance/SKILL.md
+│   ├── workspace-scoping/SKILL.md
 │   └── devops-epic-mapping/SKILL.md
 ├── output/            # Generated .drawio files (gitignored)
 ├── pyproject.toml
@@ -63,7 +66,7 @@ fabric-drawio/
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Azure DevOps organisation with epics and a Personal Access Token
-- Microsoft Fabric workspace with a service principal (Entra ID app registration)
+- Microsoft Purview account with a service principal granted **Data Reader** on the collections
 - Anthropic API key
 
 ### Install
@@ -80,75 +83,71 @@ uv sync
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials:
+Edit `.env`:
 
 | Variable | Description |
 |---|---|
-| `AZURE_DEVOPS_ORG` | DevOps organisation name (e.g. `myorg`) |
+| `AZURE_DEVOPS_ORG` | DevOps organisation name |
 | `AZURE_DEVOPS_PROJECT` | DevOps project name |
-| `AZURE_DEVOPS_PAT` | Personal Access Token (read work items scope) |
+| `AZURE_DEVOPS_PAT` | Personal Access Token (read work items) |
 | `AZURE_TENANT_ID` | Entra ID tenant ID |
 | `AZURE_CLIENT_ID` | Service principal client ID |
 | `AZURE_CLIENT_SECRET` | Service principal client secret |
-| `FABRIC_WORKSPACE_ID` | Target Fabric workspace GUID |
+| `PURVIEW_ACCOUNT_NAME` | Purview account name (not the full URL) |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OUTPUT_DIR` | Output directory (default: `./output`) |
 
-The service principal needs **Viewer** role on the Fabric workspace to read item names.
+The service principal needs **Purview Data Reader** role on the target collections.
 
 ---
 
 ## Usage
 
 ```bash
-# All active epics
+# All active epics — agent infers workspace scope from epic text
 uv run python -m agent.main --state Active
+
+# Scope all queries to a single Purview collection
+uv run python -m agent.main --workspace my-collection-id
+
+# Cross-workspace: show flows across Bronze, Silver, and Gold workspaces
+uv run python -m agent.main --cross-workspace bronze-ws-id silver-ws-id gold-ws-id
 
 # Filter by area path
 uv run python -m agent.main --state Active --area-path "MyProject\Data Team"
-
-# All epics regardless of state
-uv run python -m agent.main
 ```
 
-On startup the agent prints the number of skills loaded, then streams tool calls to the console:
+Console output during a run:
 
 ```
-Loaded 4 skill(s) from ./skills
+Loaded 5 skill(s) from ./skills
 Starting Fabric Medallion Architecture Agent...
   -> list_devops_epics(state='Active')
-  -> get_fabric_context()
+  -> list_purview_collections()
+  -> get_cross_workspace_assets(collection_ids=[3 items])
   -> get_epic_details(epic_id=42)
-  -> generate_diagram(epic_id=42, epic_title='Sales Analytics Pipeline', ...)
-...
+  -> generate_diagram(epic_id=42, epic_title='Sales Analytics...', workspace_mode='cross')
 
 Summary:
-  Epic 42 — Sales Analytics Pipeline → output/42-sales-analytics-pipeline.drawio
-  Epic 57 — HR Data Ingestion        → output/57-hr-data-ingestion.drawio
-  Epic 61 — Marketing Dashboard      → SKIPPED (no data-engineering scope)
+  Epic 42 — Sales Analytics Pipeline  → output/42-sales-analytics-pipeline.drawio  [cross-workspace]
+  Epic 57 — HR Data Ingestion         → output/57-hr-data-ingestion.drawio          [single-workspace]
+  Epic 61 — Marketing Dashboard       → SKIPPED (no data-engineering scope)
 ```
-
-Open any `.drawio` file at [diagrams.net](https://app.diagrams.net) or in draw.io Desktop.
 
 ---
 
 ## Skills
 
-The `skills/` folder contains constraint files that the agent must respect on every run. Each skill follows the [speckit](https://github.com/github/spec-kit) convention:
-
-```
-skills/<name>/SKILL.md
-```
-
-With YAML frontmatter (`name`, `description`) and structured sections:
-**Overview · When to Use · Process · Boundaries (Always/Ask First/Never) · Red Flags · Verification**
+Each skill lives in `skills/<name>/SKILL.md` with YAML frontmatter and structured sections:
+**Overview · When to Use · Process · Always/Ask First/Never · Red Flags · Verification**
 
 | Skill | Enforces |
 |---|---|
 | `medallion-architecture` | Bronze/Silver/Gold layer contracts — no layer skipping |
-| `drawio-constraints` | Plain-text labels, html=0, left-to-right layout, unique cell IDs |
-| `fabric-resource-governance` | Only reference Fabric items that exist in the workspace |
-| `devops-epic-mapping` | How to extract sources, transforms, and outputs from epic text |
+| `drawio-constraints` | Plain-text labels, `html=0`, left-to-right layout |
+| `purview-asset-governance` | Only reference assets catalogued in Purview |
+| `workspace-scoping` | Single vs cross-workspace mode selection and labelling rules |
+| `devops-epic-mapping` | Extract sources, transforms, and outputs from epic text |
 
 To add a constraint, create `skills/<your-skill>/SKILL.md` — no code changes needed.
 
@@ -157,25 +156,27 @@ To add a constraint, create `skills/<your-skill>/SKILL.md` — no code changes n
 ## Development
 
 ```bash
-# Install with dev dependencies
-uv sync --dev
-
-# Lint
-uv run ruff check .
-
-# Format
-uv run ruff format .
-
-# Run tests
-uv run pytest
+uv sync --dev          # install with dev dependencies
+uv run ruff check .    # lint
+uv run ruff format .   # format
+uv run pytest          # run tests
 ```
 
 ---
 
 ## Architecture decisions
 
-**Why one file per epic?** Each epic represents an independent data product. Merging epics into one diagram hides ownership boundaries and makes the diagram unmaintainable as epics evolve.
+**Why Purview instead of the Fabric REST API?**
+Purview's Data Map is the authoritative governance layer — it catalogs assets across all workspaces, tracks lineage, and is the single source of truth for what physically exists. The Fabric REST API only covers one workspace at a time and has no lineage information.
 
-**Why deterministic XML generation?** The draw.io builder produces the same output for the same input, making diffs readable in PRs and avoiding non-deterministic layout shifts between runs.
+**Why single-workspace and cross-workspace modes?**
+Real data platforms often split medallion layers across workspaces (e.g. a shared Bronze ingestion workspace feeding domain-specific Gold workspaces). Cross-workspace mode makes these flows visible and auditable.
 
-**Why skills instead of a long system prompt?** Skills are versioned alongside the code, reviewable in PRs, and independently testable. Adding or tightening a constraint requires no changes to the agent loop.
+**Why one file per epic?**
+Each epic represents an independent data product. Merging epics into one diagram hides ownership boundaries and makes diagrams unmaintainable as epics evolve.
+
+**Why deterministic XML generation?**
+The draw.io builder produces the same output for the same input, making diffs readable in PRs.
+
+**Why skills instead of a long system prompt?**
+Skills are versioned alongside code, reviewable in PRs, and independently testable. Adding a constraint requires no changes to the agent loop.
