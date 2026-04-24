@@ -1,0 +1,20 @@
+[
+  {
+    "id": 101,
+    "title": "Sales Analytics Pipeline",
+    "state": "Active",
+    "description": "Build an end-to-end medallion architecture for sales data from two source systems: the AdventureWorks SQL Server database (orders and products) and a SharePoint-hosted Excel file (regional targets). Raw data must land in Bronze, be cleansed and typed in Silver, and produce KPI aggregates in Gold. Diagrams must reflect the split-workspace topology where Bronze ingestion, Silver cleansing, and Gold analytics each live in separate Fabric workspaces.",
+    "acceptance_criteria": "- SQL Server orders and products tables ingested daily into Bronze lakehouse\n- SharePoint regional targets file ingested weekly\n- Silver layer deduplicates and enforces schema on all three tables\n- Gold layer computes monthly revenue, units sold, and target attainment per region\n- Power BI Sales Dashboard reads from Gold via a Direct Lake semantic model\n- All pipelines scheduled and monitored",
+    "tags": "sales; analytics; medallion; cross-workspace",
+    "area_path": "FabricPlatform\\Sales"
+  },
+  {
+    "id": 102,
+    "title": "HR Data Platform",
+    "state": "Active",
+    "description": "Centralise HR data from the SAP SuccessFactors daily CSV export into a single Fabric workspace. The platform must cover all three medallion layers (Bronze raw landing, Silver cleansed employee records, Gold headcount and attrition KPIs) plus a warehouse for ad-hoc SQL queries by the People Analytics team. All layers share a single HR Platform workspace.",
+    "acceptance_criteria": "- SAP CSV export ingested daily via pipeline into bronze_hr_lakehouse\n- Silver layer cleanses employee records: normalise job grades, fill nulls, enforce date formats\n- Gold layer aggregates headcount by department and month, computes 12-month rolling attrition rate\n- HR_Analytics_Warehouse exposes Gold tables via SQL endpoint\n- HR Semantic Model and HR Headcount Report published to Power BI",
+    "tags": "hr; people-analytics; single-workspace",
+    "area_path": "FabricPlatform\\HR"
+  }
+]

@@ -1,0 +1,171 @@
+{
+  "sales-bronze": {
+    "collection_name": "Sales Bronze",
+    "lakehouses": [
+      {
+        "id": "lh-sb-001",
+        "name": "bronze_sales_lakehouse",
+        "qualified_name": "sales-bronze/bronze_sales_lakehouse",
+        "collection_id": "sales-bronze"
+      }
+    ],
+    "pipelines": [
+      {
+        "id": "pl-sb-001",
+        "name": "SQL_Server_Ingest_Pipeline",
+        "qualified_name": "sales-bronze/SQL_Server_Ingest_Pipeline",
+        "collection_id": "sales-bronze"
+      },
+      {
+        "id": "pl-sb-002",
+        "name": "SharePoint_Ingest_Pipeline",
+        "qualified_name": "sales-bronze/SharePoint_Ingest_Pipeline",
+        "collection_id": "sales-bronze"
+      }
+    ],
+    "notebooks": [],
+    "warehouses": [],
+    "tables": [
+      {
+        "id": "t-sb-001",
+        "name": "raw_orders",
+        "qualified_name": "sales-bronze/bronze_sales_lakehouse/raw_orders",
+        "collection_id": "sales-bronze",
+        "parent_asset": "bronze_sales_lakehouse"
+      },
+      {
+        "id": "t-sb-002",
+        "name": "raw_products",
+        "qualified_name": "sales-bronze/bronze_sales_lakehouse/raw_products",
+        "collection_id": "sales-bronze",
+        "parent_asset": "bronze_sales_lakehouse"
+      },
+      {
+        "id": "t-sb-003",
+        "name": "raw_regional_targets",
+        "qualified_name": "sales-bronze/bronze_sales_lakehouse/raw_regional_targets",
+        "collection_id": "sales-bronze",
+        "parent_asset": "bronze_sales_lakehouse"
+      }
+    ]
+  },
+  "sales-silver": {
+    "collection_name": "Sales Silver",
+    "lakehouses": [
+      {
+        "id": "lh-ss-001",
+        "name": "silver_sales_lakehouse",
+        "qualified_name": "sales-silver/silver_sales_lakehouse",
+        "collection_id": "sales-silver"
+      }
+    ],
+    "pipelines": [],
+    "notebooks": [
+      {
+        "id": "nb-ss-001",
+        "name": "cleanse_orders_notebook",
+        "qualified_name": "sales-silver/cleanse_orders_notebook",
+        "collection_id": "sales-silver"
+      },
+      {
+        "id": "nb-ss-002",
+        "name": "cleanse_products_notebook",
+        "qualified_name": "sales-silver/cleanse_products_notebook",
+        "collection_id": "sales-silver"
+      }
+    ],
+    "warehouses": [],
+    "tables": [
+      {
+        "id": "t-ss-001",
+        "name": "raw_orders",
+        "qualified_name": "sales-silver/silver_sales_lakehouse/raw_orders",
+        "collection_id": "sales-silver",
+        "parent_asset": "silver_sales_lakehouse"
+      },
+      {
+        "id": "t-ss-002",
+        "name": "raw_products",
+        "qualified_name": "sales-silver/silver_sales_lakehouse/raw_products",
+        "collection_id": "sales-silver",
+        "parent_asset": "silver_sales_lakehouse"
+      }
+    ]
+  },
+  "sales-gold": {
+    "collection_name": "Sales Gold & Serving",
+    "lakehouses": [
+      {
+        "id": "lh-sg-001",
+        "name": "gold_sales_lakehouse",
+        "qualified_name": "sales-gold/gold_sales_lakehouse",
+        "collection_id": "sales-gold"
+      }
+    ],
+    "pipelines": [],
+    "notebooks": [
+      {
+        "id": "nb-sg-001",
+        "name": "aggregate_sales_kpis_notebook",
+        "qualified_name": "sales-gold/aggregate_sales_kpis_notebook",
+        "collection_id": "sales-gold"
+      }
+    ],
+    "warehouses": [],
+    "tables": []
+  },
+  "hr-platform": {
+    "collection_name": "HR Platform",
+    "lakehouses": [
+      {
+        "id": "lh-hr-001",
+        "name": "bronze_hr_lakehouse",
+        "qualified_name": "hr-platform/bronze_hr_lakehouse",
+        "collection_id": "hr-platform"
+      },
+      {
+        "id": "lh-hr-002",
+        "name": "silver_hr_lakehouse",
+        "qualified_name": "hr-platform/silver_hr_lakehouse",
+        "collection_id": "hr-platform"
+      },
+      {
+        "id": "lh-hr-003",
+        "name": "gold_hr_lakehouse",
+        "qualified_name": "hr-platform/gold_hr_lakehouse",
+        "collection_id": "hr-platform"
+      }
+    ],
+    "pipelines": [
+      {
+        "id": "pl-hr-001",
+        "name": "SAP_HR_Ingest_Pipeline",
+        "qualified_name": "hr-platform/SAP_HR_Ingest_Pipeline",
+        "collection_id": "hr-platform"
+      }
+    ],
+    "notebooks": [
+      {
+        "id": "nb-hr-001",
+        "name": "cleanse_hr_notebook",
+        "qualified_name": "hr-platform/cleanse_hr_notebook",
+        "collection_id": "hr-platform"
+      },
+      {
+        "id": "nb-hr-002",
+        "name": "aggregate_hr_kpis_notebook",
+        "qualified_name": "hr-platform/aggregate_hr_kpis_notebook",
+        "collection_id": "hr-platform"
+      }
+    ],
+    "warehouses": [
+      {
+        "id": "wh-hr-001",
+        "name": "HR_Analytics_Warehouse",
+        "qualified_name": "hr-platform/HR_Analytics_Warehouse",
+        "collection_id": "hr-platform"
+      }
+    ],
+    "tables": []
+  }
+}

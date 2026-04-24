@@ -4,7 +4,7 @@ AI agent that reads **Azure DevOps epics** and your live **Microsoft Purview Dat
 
 Supports **single-workspace** diagrams (one Fabric workspace) and **cross-workspace** diagrams (Bronze in one workspace feeding Silver/Gold in another).
 
-Built with Claude (`claude-sonnet-4-6`) using the Anthropic tool-use API and the [speckit](https://github.com/github/spec-kit) skills pattern for constraint enforcement.
+Built with Claude (`claude-opus-4-6`) using the Anthropic tool-use API and the [speckit](https://github.com/github/spec-kit) skills pattern for constraint enforcement. An OpenAI provider is also supported for teams using GPT models.
 
 ---
 
@@ -38,7 +38,8 @@ For each eligible epic Claude:
 fabric-drawio/
 ├── agent/
 │   ├── main.py        # Agentic loop + CLI entry point
-│   └── tools.py       # Claude tool schemas + dispatcher (6 tools)
+│   ├── llm.py         # LLM provider abstraction (Anthropic + OpenAI)
+│   └── tools.py       # Tool registry + 6 tool schemas and handlers
 ├── devops/
 │   └── client.py      # Azure DevOps REST API (WIQL, work items)
 ├── purview/
@@ -51,6 +52,7 @@ fabric-drawio/
 │   ├── purview-asset-governance/SKILL.md
 │   ├── workspace-scoping/SKILL.md
 │   └── devops-epic-mapping/SKILL.md
+├── tests/             # Pytest test suite (101 tests)
 ├── output/            # Generated .drawio files (gitignored)
 ├── pyproject.toml
 ├── CLAUDE.md
@@ -94,7 +96,10 @@ Edit `.env`:
 | `AZURE_CLIENT_ID` | Service principal client ID |
 | `AZURE_CLIENT_SECRET` | Service principal client secret |
 | `PURVIEW_ACCOUNT_NAME` | Purview account name (not the full URL) |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key (required for `--llm claude`) |
+| `OPENAI_API_KEY` | OpenAI API key (required for `--llm codex`) |
+| `ANTHROPIC_MODEL` | Override the Claude model (default: `claude-opus-4-6`) |
+| `OPENAI_MODEL` | Override the OpenAI model (default: `gpt-4o`) |
 | `OUTPUT_DIR` | Output directory (default: `./output`) |
 
 The service principal needs **Purview Data Reader** role on the target collections.
@@ -115,6 +120,9 @@ uv run python -m agent.main --cross-workspace bronze-ws-id silver-ws-id gold-ws-
 
 # Filter by area path
 uv run python -m agent.main --state Active --area-path "MyProject\Data Team"
+
+# Use OpenAI instead of Claude (requires uv sync --extra openai)
+uv run python -m agent.main --llm codex
 ```
 
 Console output during a run:
@@ -156,10 +164,11 @@ To add a constraint, create `skills/<your-skill>/SKILL.md` — no code changes n
 ## Development
 
 ```bash
-uv sync --dev          # install with dev dependencies
-uv run ruff check .    # lint
-uv run ruff format .   # format
-uv run pytest          # run tests
+uv sync --dev                  # install with dev dependencies
+uv sync --extra openai --dev   # include OpenAI provider
+uv run ruff check .            # lint
+uv run ruff format .           # format
+uv run pytest                  # run tests (101 tests across all modules)
 ```
 
 ---
@@ -180,3 +189,6 @@ The draw.io builder produces the same output for the same input, making diffs re
 
 **Why skills instead of a long system prompt?**
 Skills are versioned alongside code, reviewable in PRs, and independently testable. Adding a constraint requires no changes to the agent loop.
+
+**Why a provider abstraction (`LLMClient`) instead of calling Anthropic directly?**
+Teams that already use OpenAI can pass `--llm codex` without touching the agent logic. The abstraction normalises message formats, tool call packaging, and tool schema conversion — `main.py` stays provider-agnostic.

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "sales-bronze",
+    "friendly_name": "Sales Bronze",
+    "description": "Raw ingestion workspace for all sales source systems",
+    "parent_collection": null
+  },
+  {
+    "id": "sales-silver",
+    "friendly_name": "Sales Silver",
+    "description": "Cleansed and typed sales data",
+    "parent_collection": null
+  },
+  {
+    "id": "sales-gold",
+    "friendly_name": "Sales Gold & Serving",
+    "description": "Sales KPI aggregates and Power BI serving layer",
+    "parent_collection": null
+  },
+  {
+    "id": "hr-platform",
+    "friendly_name": "HR Platform",
+    "description": "Single workspace covering all medallion layers for HR data",
+    "parent_collection": null
+  }
+]

@@ -23,9 +23,9 @@ _NODE_STYLES = {
 }
 
 _LAKEHOUSE_COLORS = {
-    "bronze": ("fillColor=#f0a30a;strokeColor=#BD7000;", ""),
-    "silver": ("fillColor=#d5e8d4;strokeColor=#82b366;", ""),
-    "gold":   ("fillColor=#fff2cc;strokeColor=#d6b656;", ""),
+    "bronze": "fillColor=#f0a30a;strokeColor=#BD7000;",
+    "silver": "fillColor=#d5e8d4;strokeColor=#82b366;",
+    "gold":   "fillColor=#fff2cc;strokeColor=#d6b656;",
 }
 
 _EDGE_STYLE = (
@@ -47,7 +47,7 @@ _ZONE_PAD_BOT = 30
 def _node_style(node_type: str, zone: str) -> str:
     if node_type == "lakehouse":
         base = "shape=cylinder3;whiteSpace=wrap;html=0;boundedLbl=1;backgroundOutline=1;size=15;fontStyle=1;fontSize=11;"
-        colors, _ = _LAKEHOUSE_COLORS.get(zone, ("fillColor=#f5f5f5;strokeColor=#666666;", ""))
+        colors = _LAKEHOUSE_COLORS.get(zone, "fillColor=#f5f5f5;strokeColor=#666666;")
         return base + colors
     return _NODE_STYLES.get(node_type, _NODE_STYLES["default"])
 
@@ -64,8 +64,7 @@ def _zone_height(nodes: list[dict]) -> int:
     return _ZONE_PAD_TOP + total + gaps + _ZONE_PAD_BOT
 
 
-def _zone_width(nodes: list[dict]) -> int:
-    return _NODE_W + 2 * _ZONE_PAD_X
+_ZONE_W = _NODE_W + 2 * _ZONE_PAD_X
 
 
 def slugify(title: str) -> str:
@@ -85,7 +84,6 @@ def build_drawio(spec: dict) -> str:
     ]
 
     max_height = max(_zone_height(nodes) for _, nodes in zones_def)
-    canvas_height = max_height + 40  # top margin
 
     root = ET.Element("mxGraphModel", {
         "dx": "1422", "dy": "762", "grid": "1", "gridSize": "10",
@@ -107,12 +105,10 @@ def build_drawio(spec: dict) -> str:
     zone_w: dict[str, int] = {}
 
     for zone_key, nodes in zones_def:
-        zw = _zone_width(nodes) if nodes else _NODE_W + 2 * _ZONE_PAD_X
+        zw = _ZONE_W
         zone_x[zone_key] = x_cursor
         zone_w[zone_key] = zw
         x_cursor += zw + _ZONE_GAP
-
-    canvas_width = x_cursor - _ZONE_GAP + 20
 
     # ── Write zone background rectangles ────────────────────────────────────
     for zone_key, nodes in zones_def:

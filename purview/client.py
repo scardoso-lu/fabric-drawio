@@ -160,25 +160,6 @@ class PurviewClient:
 
         return {"workspaces": workspaces, "cross_workspace_lineage": lineage_hints}
 
-    # ── Lineage ───────────────────────────────────────────────────────────────
-
-    def get_asset_lineage(self, asset_id: str) -> dict:
-        """Return upstream and downstream lineage for a single asset (by Purview GUID)."""
-        resp = httpx.get(
-            f"{self._datamap_base}/atlas/v2/lineage/{asset_id}",
-            params={"direction": "BOTH", "api-version": _DATAMAP_API_VERSION},
-            headers=self._headers(),
-            timeout=30,
-        )
-        resp.raise_for_status()
-        body = resp.json()
-        relations = body.get("relations", [])
-        return {
-            "asset_id": asset_id,
-            "upstream": [r["fromEntityId"] for r in relations if r.get("toEntityId") == asset_id],
-            "downstream": [r["toEntityId"] for r in relations if r.get("fromEntityId") == asset_id],
-        }
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

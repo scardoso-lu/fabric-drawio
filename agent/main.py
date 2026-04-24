@@ -8,6 +8,8 @@ Usage:
     python -m agent.main [--state Active] [--area-path "MyProject\\Team"]
                          [--workspace <collection-id>]
                          [--cross-workspace <id1> <id2> ...]
+                         [--llm claude|codex]
+                         [--demo]
 """
 
 import argparse
@@ -15,12 +17,12 @@ import os
 import sys
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
 
 from devops.client import DevOpsClient
 from purview.client import PurviewClient
-from .tools import TOOL_SCHEMAS, dispatch_tool
+from .llm import LLMClient, AnthropicClient, make_client
+from .tools import build_registry
 
 load_dotenv()
 
@@ -71,29 +73,25 @@ def run(
     state: str | None = None,
     workspace: str | None = None,
     cross_workspaces: list[str] | None = None,
+    llm_client: LLMClient | None = None,
+    devops: DevOpsClient = None,
+    purview: PurviewClient = None,
 ) -> None:
+    if llm_client is None:
+        llm_client = AnthropicClient()
+    if devops is None or purview is None:
+        raise ValueError("devops and purview clients must be provided — call main() or supply them explicitly.")
+
     skills_dir = Path(__file__).parent.parent / "skills"
     system_prompt = _build_system_prompt(skills_dir)
     skill_count = sum(1 for _ in skills_dir.rglob("SKILL.md"))
     print(f"Loaded {skill_count} skill(s) from {skills_dir}")
 
-    devops = DevOpsClient(
-        org=_require("AZURE_DEVOPS_ORG"),
-        project=_require("AZURE_DEVOPS_PROJECT"),
-        pat=_require("AZURE_DEVOPS_PAT"),
-    )
-    purview = PurviewClient(
-        tenant_id=_require("AZURE_TENANT_ID"),
-        client_id=_require("AZURE_CLIENT_ID"),
-        client_secret=_require("AZURE_CLIENT_SECRET"),
-        account_name=_require("PURVIEW_ACCOUNT_NAME"),
-    )
     output_dir = Path(os.getenv("OUTPUT_DIR", "./output"))
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    client = anthropic.Anthropic(api_key=_require("ANTHROPIC_API_KEY"))
+    registry = build_registry(devops, purview, output_dir)
 
-    # Build the user instruction with explicit workspace scope if provided
     parts = ["Generate medallion architecture diagrams for all active epics."]
     if area_path:
         parts.append(f"Filter epics by area path: {area_path}.")
@@ -115,40 +113,28 @@ def run(
             "which collection(s) are relevant and choose single or cross-workspace mode accordingly."
         )
 
-    messages: list[dict] = [{"role": "user", "content": " ".join(parts)}]
+    messages: list[dict] = [llm_client.user_message(" ".join(parts))]
 
-    print("Starting Fabric Medallion Architecture Agent...")
+    print(f"Starting Fabric Medallion Architecture Agent ({llm_client.__class__.__name__})...")
     while True:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=8096,
-            system=system_prompt,
-            tools=TOOL_SCHEMAS,
-            messages=messages,
-        )
-        messages.append({"role": "assistant", "content": response.content})
+        response = llm_client.send(system_prompt, messages, registry.schemas)
+        messages.extend(llm_client.pack_assistant(response))
 
-        if response.stop_reason == "end_turn":
-            for block in response.content:
-                if hasattr(block, "text"):
-                    print("\n" + block.text)
+        if not response.tool_calls:
+            if response.text:
+                print("\n" + response.text)
             break
 
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                print(f"  -> {block.name}({_summarise(block.input)})")
-                try:
-                    result = dispatch_tool(block.name, block.input, devops, purview, output_dir)
-                except Exception as exc:
-                    result = f'{{"error": "{exc}"}}'
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
+        results: list[str] = []
+        for tc in response.tool_calls:
+            print(f"  -> {tc.name}({_summarise(tc.input)})")
+            try:
+                result = registry.dispatch(tc.name, tc.input)
+            except Exception as exc:
+                result = f'{{"error": "{exc}"}}'
+            results.append(result)
 
-        messages.append({"role": "user", "content": tool_results})
+        messages.extend(llm_client.pack_tool_results(response.tool_calls, results))
 
 
 def _summarise(inputs: dict) -> str:
@@ -167,6 +153,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Fabric Medallion Architecture Agent")
     parser.add_argument("--area-path", help="Azure DevOps area path filter")
     parser.add_argument("--state", default="Active", help="Epic state filter (default: Active)")
+    parser.add_argument(
+        "--llm",
+        choices=["claude", "codex"],
+        default="claude",
+        help="LLM provider: 'claude' (Anthropic, default) or 'codex' (OpenAI). "
+             "Override model with ANTHROPIC_MODEL / OPENAI_MODEL env vars.",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run with example fixture data from examples/ instead of calling Azure DevOps and Purview APIs. "
+             "Only ANTHROPIC_API_KEY (or OPENAI_API_KEY) is required.",
+    )
 
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument(
@@ -182,11 +181,33 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    if args.demo:
+        from .demo import DevOpsClientStub, PurviewClientStub
+        devops = DevOpsClientStub()
+        purview = PurviewClientStub()
+        print("Demo mode: using example fixture data from examples/")
+    else:
+        devops = DevOpsClient(
+            org=_require("AZURE_DEVOPS_ORG"),
+            project=_require("AZURE_DEVOPS_PROJECT"),
+            pat=_require("AZURE_DEVOPS_PAT"),
+        )
+        purview = PurviewClient(
+            tenant_id=_require("AZURE_TENANT_ID"),
+            client_id=_require("AZURE_CLIENT_ID"),
+            client_secret=_require("AZURE_CLIENT_SECRET"),
+            account_name=_require("PURVIEW_ACCOUNT_NAME"),
+        )
+
     run(
         area_path=args.area_path,
         state=args.state,
         workspace=args.workspace,
         cross_workspaces=args.cross_workspace,
+        llm_client=make_client(args.llm),
+        devops=devops,
+        purview=purview,
     )
 
 

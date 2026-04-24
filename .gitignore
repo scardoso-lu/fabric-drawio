@@ -8,3 +8,4 @@ venv/
 .uv/
 dist/
 *.egg-info/
+.claude/

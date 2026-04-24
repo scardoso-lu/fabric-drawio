@@ -9,6 +9,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+
 [project.scripts]
 fabric-agent = "agent.main:main"
 
@@ -27,6 +30,10 @@ select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent", "devops", "drawio", "purview"]
 
 [build-system]
 requires = ["hatchling"]

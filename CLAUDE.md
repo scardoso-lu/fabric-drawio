@@ -5,25 +5,28 @@ AI agent that generates Microsoft Fabric Medallion Architecture `.drawio` diagra
 ## Project structure
 
 ```
-agent/          Orchestration layer — agentic loop (main.py) and Claude tool schemas (tools.py)
+agent/          Orchestration layer — agentic loop (main.py), LLM abstraction (llm.py), tool registry (tools.py)
 devops/         Azure DevOps REST client — WIQL queries, work item details
 purview/        Microsoft Purview Data Map client — collections, asset queries, lineage
 drawio/         draw.io XML builder — deterministic 5-zone layout generator
 skills/         Speckit-pattern constraint files loaded into the system prompt at runtime
+tests/          Pytest test suite — unit tests for all modules (no external calls)
 output/         Generated .drawio files (gitignored)
 ```
 
 ## Commands
 
 ```bash
-uv sync                                      # install all dependencies
-uv sync --dev                                # install with dev dependencies
-uv run python -m agent.main --state Active   # run the agent (auto workspace scope)
-uv run python -m agent.main --workspace <id> # single-workspace mode
+uv sync                                           # install all dependencies
+uv sync --dev                                     # install with dev dependencies
+uv sync --extra openai --dev                      # include OpenAI provider
+uv run python -m agent.main --state Active        # run the agent (auto workspace scope)
+uv run python -m agent.main --workspace <id>      # single-workspace mode
 uv run python -m agent.main --cross-workspace <id1> <id2>  # cross-workspace mode
-uv run ruff check .                          # lint
-uv run ruff format .                         # format
-uv run pytest                                # run tests
+uv run python -m agent.main --llm codex           # use OpenAI instead of Claude
+uv run ruff check .                               # lint
+uv run ruff format .                              # format
+uv run pytest                                     # run tests
 ```
 
 ## Architecture conventions
@@ -31,7 +34,22 @@ uv run pytest                                # run tests
 ### Component boundaries
 - `devops/` and `purview/` are pure API clients — no Claude logic, no draw.io logic
 - `drawio/builder.py` is deterministic — given the same spec dict it always produces the same XML
+- `agent/llm.py` owns all LLM provider logic — `main.py` only talks to the `LLMClient` ABC
 - `agent/` is the only layer that imports from all three components; never cross-import between components
+
+### LLM provider abstraction (`agent/llm.py`)
+- `LLMClient` ABC defines `send`, `pack_assistant`, `pack_tool_results`, and `user_message`
+- `AnthropicClient` wraps the Anthropic Messages API; default model is `claude-opus-4-6`
+- `OpenAIClient` wraps OpenAI Chat Completions; converts Anthropic `input_schema` tool format to OpenAI `parameters` format automatically
+- `make_client(provider)` is the factory — model overrides via `ANTHROPIC_MODEL` / `OPENAI_MODEL` env vars
+- Both providers use deferred imports (`import anthropic` / `import openai` inside `__init__`) so the missing package only errors at instantiation, not at import time
+- OpenAI is an optional dependency: `uv sync --extra openai`
+
+### Tool registry (`agent/tools.py`)
+- `Tool` is a frozen dataclass pairing a schema dict with a handler callable
+- `ToolRegistry.dispatch(name, inputs)` routes calls; returns `{"error": "..."}` JSON for unknown tools
+- `build_registry(devops, purview, output_dir)` wires all six tools — adding a tool requires only a schema constant, a handler closure, and a `register()` call (OCP)
+- Six tools: `list_devops_epics`, `get_epic_details`, `list_purview_collections`, `get_workspace_assets`, `get_cross_workspace_assets`, `generate_diagram`
 
 ### draw.io rules (enforced by `skills/drawio-constraints/SKILL.md`)
 - All `mxCell` `value` attributes must be plain text — **no HTML tags, ever**
@@ -62,6 +80,12 @@ uv run pytest                                # run tests
 - `agent/main.py` reads all `SKILL.md` files at startup via `_load_skills()` and appends them to the system prompt
 - To add a constraint: create `skills/<your-skill>/SKILL.md` — no code changes needed
 
+### Tests
+- All tests live in `tests/` and use only `unittest.mock` — no network calls, no real credentials
+- `httpx` calls are patched via `patch("httpx.get")` / `patch("httpx.post")`
+- Anthropic/OpenAI SDK imports are patched via `patch.dict("sys.modules", {...})` — deferred imports in the client `__init__` methods make this pattern necessary
+- `AnthropicClient` content blocks must be mocked with `spec=["type", "text"]` or `spec=["type", "id", "name", "input"]` so `hasattr` checks on the mock return the right result
+
 ## Adding a new Purview asset type
 
 1. Add the new `microsoft_fabric_*` entity type to `_FABRIC_ENTITY_TYPES` in `purview/client.py`
@@ -69,6 +93,13 @@ uv run pytest                                # run tests
 3. Add a `"type"` entry to `_NODE_STYLES` in `drawio/builder.py`
 4. Update the asset-type-to-zone mapping table in `skills/purview-asset-governance/SKILL.md`
 5. Add the new type to the `generate_diagram` tool schema enum in `agent/tools.py`
+
+## Adding a new LLM provider
+
+1. Add a concrete subclass of `LLMClient` in `agent/llm.py` implementing `send`, `pack_assistant`, `pack_tool_results`
+2. Add a branch in `make_client()` for the new provider name
+3. Add the provider name to the `--llm` choices in `agent/main.py`
+4. If the provider has an optional dependency, add it under `[project.optional-dependencies]` in `pyproject.toml`
 
 ## Adding a new Azure DevOps field
 
@@ -80,3 +111,5 @@ See `.env.example` for the full list. Required at runtime:
 `AZURE_DEVOPS_ORG`, `AZURE_DEVOPS_PROJECT`, `AZURE_DEVOPS_PAT`,
 `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
 `PURVIEW_ACCOUNT_NAME`, `ANTHROPIC_API_KEY`
+
+Optional: `OPENAI_API_KEY`, `ANTHROPIC_MODEL`, `OPENAI_MODEL`, `OUTPUT_DIR`
