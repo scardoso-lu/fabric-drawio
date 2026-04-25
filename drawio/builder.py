@@ -34,6 +34,25 @@ _EDGE_STYLE = (
     "entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=9;"
 )
 
+_UNCLEAR_ZONE_STYLE = (
+    "rounded=1;whiteSpace=wrap;html=0;fillColor=#f5f5f5;strokeColor=#666666;"
+    "fontSize=13;fontStyle=1;verticalAlign=top;arcSize=3;opacity=40;"
+)
+_UNCLEAR_NODE_STYLE = (
+    "rounded=1;whiteSpace=wrap;html=0;fillColor=#f5f5f5;strokeColor=#666666;"
+    "fontStyle=2;fontSize=10;align=left;spacingLeft=8;spacingTop=6;"
+    "dashed=1;dashPattern=8 4;"
+)
+_UNCLEAR_EDGE_STYLE = (
+    "edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;"
+    "dashed=1;dashPattern=8 4;endArrow=open;endFill=0;"
+    "strokeColor=#666666;fontColor=#666666;fontSize=9;"
+)
+
+_UNCLEAR_NODE_W = 220
+_UNCLEAR_NODE_H = 90
+_UNCLEAR_NODE_GAP = 20  # horizontal gap between unclear nodes
+
 _NODE_W = 160
 _NODE_H = 60
 _NODE_H_TALL = 80
@@ -65,6 +84,10 @@ def _zone_height(nodes: list[dict]) -> int:
 
 
 _ZONE_W = _NODE_W + 2 * _ZONE_PAD_X
+
+
+def _trunc(text: str, max_len: int) -> str:
+    return text if len(text) <= max_len else text[: max_len - 3] + "..."
 
 
 def slugify(title: str) -> str:
@@ -175,6 +198,59 @@ def build_drawio(spec: dict) -> str:
         })
         ET.SubElement(c, "mxGeometry", {"relative": "1", "as": "geometry"})
         cell_id += 1
+
+    # ── Write OPEN QUESTIONS zone (unclear / black-box steps) ────────────────
+    unclear_steps = spec.get("unclear_steps", [])
+    if unclear_steps:
+        n = len(unclear_steps)
+        qs_zone_x = zone_x[zones_def[0][0]]
+        qs_zone_w = zone_x[zones_def[-1][0]] + zone_w[zones_def[-1][0]] - qs_zone_x
+        qs_zone_y = 20 + max_height + 40
+        qs_zone_h = _ZONE_PAD_TOP + _UNCLEAR_NODE_H + _ZONE_PAD_BOT
+
+        qs_bg = ET.SubElement(root_el, "mxCell", {
+            "id": str(cell_id), "value": "OPEN QUESTIONS",
+            "style": _UNCLEAR_ZONE_STYLE, "vertex": "1", "parent": "1",
+        })
+        ET.SubElement(qs_bg, "mxGeometry", {
+            "x": str(qs_zone_x), "y": str(qs_zone_y),
+            "width": str(qs_zone_w), "height": str(qs_zone_h),
+            "as": "geometry",
+        })
+        cell_id += 1
+
+        node_y = qs_zone_y + _ZONE_PAD_TOP
+        node_x = qs_zone_x + _ZONE_PAD_X
+        for item in unclear_steps:
+            epic_ref = _trunc(item.get("epic_reference", ""), 45)
+            label = (
+                f"[?] {item['step']}\n"
+                f"From: {item['lands_from']}\n"
+                f'Epic: "{epic_ref}"'
+            )
+            c = ET.SubElement(root_el, "mxCell", {
+                "id": str(cell_id), "value": label,
+                "style": _UNCLEAR_NODE_STYLE, "vertex": "1", "parent": "1",
+            })
+            ET.SubElement(c, "mxGeometry", {
+                "x": str(node_x), "y": str(node_y),
+                "width": str(_UNCLEAR_NODE_W), "height": str(_UNCLEAR_NODE_H),
+                "as": "geometry",
+            })
+            unclear_cell_id = str(cell_id)
+            cell_id += 1
+
+            src_id = name_to_id.get(item.get("lands_from", ""))
+            if src_id:
+                c = ET.SubElement(root_el, "mxCell", {
+                    "id": str(cell_id), "value": "unclear",
+                    "style": _UNCLEAR_EDGE_STYLE, "edge": "1",
+                    "source": src_id, "target": unclear_cell_id, "parent": "1",
+                })
+                ET.SubElement(c, "mxGeometry", {"relative": "1", "as": "geometry"})
+                cell_id += 1
+
+            node_x += _UNCLEAR_NODE_W + _UNCLEAR_NODE_GAP
 
     ET.indent(root, space="  ")
     xml_str = ET.tostring(root, encoding="unicode", xml_declaration=False)

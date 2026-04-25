@@ -140,7 +140,7 @@ class TestBuildRegistry:
 
         purview.get_cross_workspace_assets.assert_called_once_with(["c1", "c2"])
 
-    def test_generate_diagram_writes_file(self, tmp_path):
+    def test_generate_diagram_writes_both_files(self, tmp_path):
         devops, purview, output_dir = self._make_dependencies(tmp_path)
         registry = build_registry(devops, purview, output_dir)
 
@@ -148,36 +148,62 @@ class TestBuildRegistry:
             "epic_id": 42,
             "epic_title": "My Epic",
             "workspace_mode": "single",
-            "data_sources": [{"name": "Source A", "type": "source"}],
-            "bronze_nodes": [],
-            "silver_nodes": [],
-            "gold_nodes": [],
-            "serving_nodes": [],
-            "edges": [],
+            "data_sources": [], "bronze_nodes": [], "silver_nodes": [],
+            "gold_nodes": [], "serving_nodes": [], "edges": [],
+            "pseudoalgorithm": [], "tradeoffs": [], "unclear_steps": [],
         }
         result = json.loads(registry.dispatch("generate_diagram", inputs))
 
         assert result["status"] == "ok"
-        out_path = Path(result["file"])
-        assert out_path.exists()
-        assert out_path.suffix == ".drawio"
-        content = out_path.read_text()
-        assert "<?xml" in content
+        assert Path(result["drawio"]).exists()
+        assert Path(result["drawio"]).suffix == ".drawio"
+        assert Path(result["tech_spec"]).exists()
+        assert Path(result["tech_spec"]).suffix == ".md"
+
+    def test_generate_diagram_drawio_contains_xml(self, tmp_path):
+        devops, purview, output_dir = self._make_dependencies(tmp_path)
+        registry = build_registry(devops, purview, output_dir)
+
+        inputs = {
+            "epic_id": 42, "epic_title": "My Epic", "workspace_mode": "single",
+            "data_sources": [], "bronze_nodes": [], "silver_nodes": [],
+            "gold_nodes": [], "serving_nodes": [], "edges": [],
+            "pseudoalgorithm": [], "tradeoffs": [], "unclear_steps": [],
+        }
+        result = json.loads(registry.dispatch("generate_diagram", inputs))
+
+        assert "<?xml" in Path(result["drawio"]).read_text()
 
     def test_generate_diagram_filename_uses_epic_id_and_slug(self, tmp_path):
         devops, purview, output_dir = self._make_dependencies(tmp_path)
         registry = build_registry(devops, purview, output_dir)
 
         inputs = {
-            "epic_id": 99,
-            "epic_title": "Sales Report!",
-            "workspace_mode": "single",
+            "epic_id": 99, "epic_title": "Sales Report!", "workspace_mode": "single",
             "data_sources": [], "bronze_nodes": [], "silver_nodes": [],
             "gold_nodes": [], "serving_nodes": [], "edges": [],
+            "pseudoalgorithm": [], "tradeoffs": [], "unclear_steps": [],
         }
         result = json.loads(registry.dispatch("generate_diagram", inputs))
-        filename = Path(result["file"]).name
-        assert filename == "99-sales-report.drawio"
+
+        assert Path(result["drawio"]).name == "99-sales-report.drawio"
+        assert Path(result["tech_spec"]).name == "99-sales-report.md"
+
+    def test_generate_diagram_both_files_share_same_stem(self, tmp_path):
+        devops, purview, output_dir = self._make_dependencies(tmp_path)
+        registry = build_registry(devops, purview, output_dir)
+
+        inputs = {
+            "epic_id": 7, "epic_title": "HR Platform", "workspace_mode": "single",
+            "data_sources": [], "bronze_nodes": [], "silver_nodes": [],
+            "gold_nodes": [], "serving_nodes": [], "edges": [],
+            "pseudoalgorithm": [], "tradeoffs": [], "unclear_steps": [],
+        }
+        result = json.loads(registry.dispatch("generate_diagram", inputs))
+
+        drawio_stem = Path(result["drawio"]).stem
+        md_stem = Path(result["tech_spec"]).stem
+        assert drawio_stem == md_stem
 
     def test_dispatch_unknown_tool_returns_error_json(self, tmp_path):
         devops, purview, output_dir = self._make_dependencies(tmp_path)

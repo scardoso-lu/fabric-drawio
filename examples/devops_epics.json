@@ -16,5 +16,14 @@
     "acceptance_criteria": "- SAP CSV export ingested daily via pipeline into bronze_hr_lakehouse\n- Silver layer cleanses employee records: normalise job grades, fill nulls, enforce date formats\n- Gold layer aggregates headcount by department and month, computes 12-month rolling attrition rate\n- HR_Analytics_Warehouse exposes Gold tables via SQL endpoint\n- HR Semantic Model and HR Headcount Report published to Power BI",
     "tags": "hr; people-analytics; single-workspace",
     "area_path": "FabricPlatform\\HR"
+  },
+  {
+    "id": 103,
+    "title": "Public Transport Accessibility Heatmap",
+    "state": "Active",
+    "description": "Ingest bus stop locations (GTFS static feed) and residential address points from Luxembourg's open data portal (data.lu) into a single Fabric workspace. Compute the geodesic distance from each residence to its nearest bus stop, then classify each residence as green (<1 km), yellow (1–2 km), or red (>2 km). Publish an interactive Power BI heatmap so the mobility team can identify underserved residential areas.",
+    "acceptance_criteria": "- Bus stop coordinates ingested daily from data.lu GTFS static feed via data_lu_bus_stops_pipeline into bronze_mobility_lakehouse (raw_bus_stops table)\n- Residential address points ingested weekly from data.lu address register via data_lu_residences_pipeline into bronze_mobility_lakehouse (raw_residences table)\n- Silver layer normalises all coordinates to WGS-84, removes duplicate stops and addresses, enforces schema on cleansed bus_stops and residences tables\n- Gold layer computes geodesic distance to nearest bus stop per residence using compute_accessibility_notebook; adds accessibility_band column (green/yellow/red) to transport_accessibility table\n- Mobility_Analytics_Warehouse exposes gold tables via SQL endpoint for ad-hoc analysis\n- Transport Accessibility Semantic Model publishes gold table to Power BI\n- Transport Accessibility Heatmap report renders colour-coded dots on a filled map visual by commune",
+    "tags": "mobility; transport; heatmap; data.lu; single-workspace",
+    "area_path": "FabricPlatform\\Mobility"
   }
 ]

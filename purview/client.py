@@ -151,21 +151,14 @@ class PurviewClient:
             for cid, asset_list in by_workspace.items()
         }
 
-        # Simple cross-workspace lineage hint: tables shared across workspaces by qualified name prefix
-        all_table_names = [
-            a.get("displayText", "") for a in assets
-            if a.get("entityType") == "microsoft_fabric_table"
-        ]
-        lineage_hints = _infer_cross_workspace_lineage(by_workspace, all_table_names)
+        lineage_hints = _infer_cross_workspace_lineage(by_workspace)
 
         return {"workspaces": workspaces, "cross_workspace_lineage": lineage_hints}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _infer_cross_workspace_lineage(
-    by_workspace: dict[str, list], all_table_names: list[str]
-) -> list[dict]:
+def _infer_cross_workspace_lineage(by_workspace: dict[str, list]) -> list[dict]:
     """
     Produce lightweight lineage hints when a table name appears in multiple workspaces
     (common in Bronze→Silver→Gold split-workspace patterns).

@@ -1,5 +1,6 @@
 .env
 output/*.drawio
+output/*.md
 __pycache__/
 *.pyc
 *.pyo

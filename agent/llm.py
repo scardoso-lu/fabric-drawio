@@ -60,7 +60,10 @@ class LLMClient(ABC):
 class AnthropicClient(LLMClient):
     """Claude via the Anthropic Messages API. Reads ANTHROPIC_API_KEY from env."""
 
-    def __init__(self, model: str = "claude-opus-4-6") -> None:
+    _DEFAULT_MODEL = "claude-opus-4-6"
+    _ENV_VAR = "ANTHROPIC_MODEL"
+
+    def __init__(self, model: str = _DEFAULT_MODEL) -> None:
         import anthropic
         self._client = anthropic.Anthropic()
         self._model = model
@@ -97,7 +100,10 @@ class OpenAIClient(LLMClient):
     Tool schemas are auto-converted from Anthropic input_schema format to OpenAI format.
     """
 
-    def __init__(self, model: str = "gpt-4o") -> None:
+    _DEFAULT_MODEL = "gpt-4o"
+    _ENV_VAR = "OPENAI_MODEL"
+
+    def __init__(self, model: str = _DEFAULT_MODEL) -> None:
         try:
             import openai
         except ImportError as exc:
@@ -163,10 +169,17 @@ class OpenAIClient(LLMClient):
         ]
 
 
+# Registry maps provider name → client class. Add a new class + one entry here to extend.
+_PROVIDERS: dict[str, type[LLMClient]] = {
+    "claude": AnthropicClient,
+    "codex": OpenAIClient,
+}
+
+
 def make_client(provider: str) -> LLMClient:
-    """Factory that reads model overrides from env vars."""
-    if provider == "claude":
-        return AnthropicClient(model=os.getenv("ANTHROPIC_MODEL", "claude-opus-4-6"))
-    if provider == "codex":
-        return OpenAIClient(model=os.getenv("OPENAI_MODEL", "gpt-4o"))
-    raise ValueError(f"Unknown LLM provider '{provider}'. Choose 'claude' or 'codex'.")
+    cls = _PROVIDERS.get(provider)
+    if cls is None:
+        raise ValueError(
+            f"Unknown LLM provider '{provider}'. Choose from: {list(_PROVIDERS)}"
+        )
+    return cls(model=os.getenv(cls._ENV_VAR, cls._DEFAULT_MODEL))

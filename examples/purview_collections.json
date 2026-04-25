@@ -22,5 +22,11 @@
     "friendly_name": "HR Platform",
     "description": "Single workspace covering all medallion layers for HR data",
     "parent_collection": null
+  },
+  {
+    "id": "mobility-platform",
+    "friendly_name": "Mobility Platform",
+    "description": "Single workspace for public transport accessibility analytics sourced from data.lu",
+    "parent_collection": null
   }
 ]

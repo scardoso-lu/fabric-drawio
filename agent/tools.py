@@ -9,11 +9,21 @@ adding a schema constant, a handler, and a register() call in build_registry()
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
 
-from devops.client import DevOpsClient
 from drawio.builder import build_drawio, slugify
-from purview.client import PurviewClient
+from techspec.builder import build_tech_spec_md
+
+
+class DevOpsProvider(Protocol):
+    def list_epics(self, area_path: str | None, state: str | None) -> list[dict]: ...
+    def get_epic_details(self, epic_id: int) -> dict: ...
+
+
+class PurviewProvider(Protocol):
+    def list_collections(self) -> list[dict]: ...
+    def get_workspace_assets(self, collection_id: str) -> dict: ...
+    def get_cross_workspace_assets(self, collection_ids: list[str]) -> dict: ...
 
 
 @dataclass(frozen=True)
@@ -138,7 +148,7 @@ _GET_CROSS_WORKSPACE_ASSETS_SCHEMA = {
 _GENERATE_DIAGRAM_SCHEMA = {
     "name": "generate_diagram",
     "description": (
-        "Generate a .drawio medallion architecture diagram for a single epic and write it to disk. "
+        "Generate a .drawio medallion architecture diagram AND a companion .md tech spec for a single epic. "
         "All name values must be plain text — no HTML tags. "
         "Reuse exact asset names from Purview. "
         "The 'type' field controls node shape/colour: "
@@ -146,7 +156,10 @@ _GENERATE_DIAGRAM_SCHEMA = {
         "'lakehouse' for Delta lakehouses, 'notebook' for PySpark notebooks, "
         "'warehouse' for Fabric Warehouses, "
         "'semantic_model' for Direct Lake models, 'report' for Power BI reports. "
-        "Set workspace_mode to 'single' or 'cross' to record how the diagram was scoped."
+        "Set workspace_mode to 'single' or 'cross' to record how the diagram was scoped. "
+        "pseudoalgorithm: ordered implementation steps in plain language. "
+        "tradeoffs: architecture and cost decisions the engineer must make themselves, "
+        "each with a topic and a description of the options and their implications."
     ),
     "input_schema": {
         "type": "object",
@@ -229,11 +242,66 @@ _GENERATE_DIAGRAM_SCHEMA = {
                     "required": ["from", "to"],
                 },
             },
+            "pseudoalgorithm": {
+                "type": "array",
+                "description": "Ordered implementation steps in plain language / pseudo-code.",
+                "items": {"type": "string"},
+            },
+            "tradeoffs": {
+                "type": "array",
+                "description": "Architecture and cost decisions the engineer must make themselves.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "topic": {"type": "string"},
+                        "description": {"type": "string"},
+                    },
+                    "required": ["topic", "description"],
+                },
+            },
+            "unclear_steps": {
+                "type": "array",
+                "description": (
+                    "Steps or decisions that are ambiguous, missing, or underdefined in the epic "
+                    "or Purview catalogue. Identify every gap the engineer must resolve before "
+                    "building. Use an empty list only when the epic and Purview data leave nothing "
+                    "ambiguous."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "step": {
+                            "type": "string",
+                            "description": "Short label for the unclear or unknown step.",
+                        },
+                        "epic_reference": {
+                            "type": "string",
+                            "description": (
+                                "Verbatim phrase or sentence from the epic that is ambiguous "
+                                "or missing detail."
+                            ),
+                        },
+                        "assumption": {
+                            "type": "string",
+                            "description": (
+                                "Assumption made to unblock the diagram, or what the engineer "
+                                "must define before building."
+                            ),
+                        },
+                        "lands_from": {
+                            "type": "string",
+                            "description": "Name of the diagram node that leads into this unclear step.",
+                        },
+                    },
+                    "required": ["step", "epic_reference", "assumption", "lands_from"],
+                },
+            },
         },
         "required": [
             "epic_id", "epic_title", "workspace_mode",
             "data_sources", "bronze_nodes", "silver_nodes",
             "gold_nodes", "serving_nodes", "edges",
+            "pseudoalgorithm", "tradeoffs", "unclear_steps",
         ],
     },
 }
@@ -242,8 +310,8 @@ _GENERATE_DIAGRAM_SCHEMA = {
 # ── Registry factory ──────────────────────────────────────────────────────────
 
 def build_registry(
-    devops: DevOpsClient,
-    purview: PurviewClient,
+    devops: DevOpsProvider,
+    purview: PurviewProvider,
     output_dir: Path,
 ) -> ToolRegistry:
     """
@@ -273,11 +341,18 @@ def build_registry(
         return json.dumps(purview.get_cross_workspace_assets(inputs["collection_ids"]))
 
     def generate_diagram(inputs: dict) -> str:
+        slug = slugify(inputs["epic_title"])
+        base = output_dir / f"{inputs['epic_id']}-{slug}"
+
         xml = build_drawio(inputs)
-        filename = f"{inputs['epic_id']}-{slugify(inputs['epic_title'])}.drawio"
-        out_path = output_dir / filename
-        out_path.write_text(xml, encoding="utf-8")
-        return json.dumps({"status": "ok", "file": str(out_path)})
+        drawio_path = base.with_suffix(".drawio")
+        drawio_path.write_text(xml, encoding="utf-8")
+
+        md = build_tech_spec_md(inputs)
+        md_path = base.with_suffix(".md")
+        md_path.write_text(md, encoding="utf-8")
+
+        return json.dumps({"status": "ok", "drawio": str(drawio_path), "tech_spec": str(md_path)})
 
     registry.register(Tool(schema=_LIST_EPICS_SCHEMA, handler=list_epics))
     registry.register(Tool(schema=_GET_EPIC_DETAILS_SCHEMA, handler=get_epic_details))

@@ -116,6 +116,9 @@
   },
   "hr-platform": {
     "collection_name": "HR Platform",
+    "data_sources": [
+      {"name": "SAP SuccessFactors CSV Export", "type": "source"}
+    ],
     "lakehouses": [
       {
         "id": "lh-hr-001",
@@ -167,5 +170,111 @@
       }
     ],
     "tables": []
+  },
+  "mobility-platform": {
+    "collection_name": "Mobility Platform",
+    "data_sources": [
+      {"name": "data.lu GTFS Bus Stops Feed", "type": "source"},
+      {"name": "data.lu Residential Address Register", "type": "source"}
+    ],
+    "lakehouses": [
+      {
+        "id": "lh-mob-001",
+        "name": "bronze_mobility_lakehouse",
+        "qualified_name": "mobility-platform/bronze_mobility_lakehouse",
+        "collection_id": "mobility-platform"
+      },
+      {
+        "id": "lh-mob-002",
+        "name": "silver_mobility_lakehouse",
+        "qualified_name": "mobility-platform/silver_mobility_lakehouse",
+        "collection_id": "mobility-platform"
+      },
+      {
+        "id": "lh-mob-003",
+        "name": "gold_mobility_lakehouse",
+        "qualified_name": "mobility-platform/gold_mobility_lakehouse",
+        "collection_id": "mobility-platform"
+      }
+    ],
+    "pipelines": [
+      {
+        "id": "pl-mob-001",
+        "name": "data_lu_bus_stops_pipeline",
+        "qualified_name": "mobility-platform/data_lu_bus_stops_pipeline",
+        "collection_id": "mobility-platform"
+      },
+      {
+        "id": "pl-mob-002",
+        "name": "data_lu_residences_pipeline",
+        "qualified_name": "mobility-platform/data_lu_residences_pipeline",
+        "collection_id": "mobility-platform"
+      }
+    ],
+    "notebooks": [
+      {
+        "id": "nb-mob-001",
+        "name": "cleanse_bus_stops_notebook",
+        "qualified_name": "mobility-platform/cleanse_bus_stops_notebook",
+        "collection_id": "mobility-platform"
+      },
+      {
+        "id": "nb-mob-002",
+        "name": "cleanse_residences_notebook",
+        "qualified_name": "mobility-platform/cleanse_residences_notebook",
+        "collection_id": "mobility-platform"
+      },
+      {
+        "id": "nb-mob-003",
+        "name": "compute_accessibility_notebook",
+        "qualified_name": "mobility-platform/compute_accessibility_notebook",
+        "collection_id": "mobility-platform"
+      }
+    ],
+    "warehouses": [
+      {
+        "id": "wh-mob-001",
+        "name": "Mobility_Analytics_Warehouse",
+        "qualified_name": "mobility-platform/Mobility_Analytics_Warehouse",
+        "collection_id": "mobility-platform"
+      }
+    ],
+    "tables": [
+      {
+        "id": "t-mob-001",
+        "name": "raw_bus_stops",
+        "qualified_name": "mobility-platform/bronze_mobility_lakehouse/raw_bus_stops",
+        "collection_id": "mobility-platform",
+        "parent_asset": "bronze_mobility_lakehouse"
+      },
+      {
+        "id": "t-mob-002",
+        "name": "raw_residences",
+        "qualified_name": "mobility-platform/bronze_mobility_lakehouse/raw_residences",
+        "collection_id": "mobility-platform",
+        "parent_asset": "bronze_mobility_lakehouse"
+      },
+      {
+        "id": "t-mob-003",
+        "name": "bus_stops",
+        "qualified_name": "mobility-platform/silver_mobility_lakehouse/bus_stops",
+        "collection_id": "mobility-platform",
+        "parent_asset": "silver_mobility_lakehouse"
+      },
+      {
+        "id": "t-mob-004",
+        "name": "residences",
+        "qualified_name": "mobility-platform/silver_mobility_lakehouse/residences",
+        "collection_id": "mobility-platform",
+        "parent_asset": "silver_mobility_lakehouse"
+      },
+      {
+        "id": "t-mob-005",
+        "name": "transport_accessibility",
+        "qualified_name": "mobility-platform/gold_mobility_lakehouse/transport_accessibility",
+        "collection_id": "mobility-platform",
+        "parent_asset": "gold_mobility_lakehouse"
+      }
+    ]
   }
 }

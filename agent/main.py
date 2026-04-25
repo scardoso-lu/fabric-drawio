@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 from devops.client import DevOpsClient
 from purview.client import PurviewClient
+from .demo import DevOpsClientStub, PurviewClientStub, ScriptedClient
 from .llm import LLMClient, AnthropicClient, make_client
 from .tools import build_registry
 
@@ -39,8 +40,25 @@ Medallion Architecture (Bronze / Silver / Gold). Your job each run:
 4. For each epic, call get_epic_details then reason about the appropriate medallion
    architecture strictly following all skills loaded below.
 5. Call generate_diagram for each in-scope epic. Set workspace_mode to "single" or "cross".
-6. Output a summary listing every epic processed: diagram filename, workspace_mode used,
-   and any assumptions or skipped epics with reasons.
+   Also populate:
+   - pseudoalgorithm: ordered implementation steps (Bronze ingestion → Silver cleansing →
+     Gold transformations → Serving publication). Be concrete: name the assets, data formats,
+     and key transformation logic inferred from the epic description.
+   - tradeoffs: a list of architecture and cost decisions the engineer must make themselves.
+     Each tradeoff must have a topic and a description that explains the options and their
+     implications (e.g. compute cost, governance, complexity, latency). Do not recommend a
+     single answer — present the options and let the engineer decide.
+   - unclear_steps: every step or detail that is ambiguous, missing, or underdefined in the
+     epic text or Purview catalogue. For each item provide:
+       • step: a short label for the gap (e.g. "Source schema unknown")
+       • epic_reference: the verbatim phrase from the epic that is ambiguous or absent
+       • assumption: what assumption was made to draw the diagram, or what the engineer
+         must define before building (never skip this — it surfaces the decision)
+       • lands_from: the name of the diagram node that flows into this unclear step
+     An empty list is only valid if the epic and Purview data leave absolutely nothing
+     ambiguous — treat any implied detail not explicitly stated as an open question.
+6. Output a summary listing every epic processed: diagram filename, tech spec filename,
+   workspace_mode used, and any assumptions or skipped epics with reasons.
 """
 
 
@@ -183,7 +201,6 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.demo:
-        from .demo import DevOpsClientStub, PurviewClientStub
         devops = DevOpsClientStub()
         purview = PurviewClientStub()
         print("Demo mode: using example fixture data from examples/")
@@ -200,12 +217,14 @@ def main() -> None:
             account_name=_require("PURVIEW_ACCOUNT_NAME"),
         )
 
+    llm_client = ScriptedClient() if args.demo else make_client(args.llm)
+
     run(
         area_path=args.area_path,
         state=args.state,
         workspace=args.workspace,
         cross_workspaces=args.cross_workspace,
-        llm_client=make_client(args.llm),
+        llm_client=llm_client,
         devops=devops,
         purview=purview,
     )

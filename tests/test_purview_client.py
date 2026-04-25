@@ -246,7 +246,7 @@ class TestInferCrossWorkspaceLineage:
             "ws1": [{"entityType": "microsoft_fabric_table", "displayText": "table_a"}],
             "ws2": [{"entityType": "microsoft_fabric_table", "displayText": "table_b"}],
         }
-        hints = _infer_cross_workspace_lineage(by_workspace, ["table_a", "table_b"])
+        hints = _infer_cross_workspace_lineage(by_workspace)
         assert hints == []
 
     def test_shared_table_produces_hint(self):
@@ -254,7 +254,7 @@ class TestInferCrossWorkspaceLineage:
             "ws1": [{"entityType": "microsoft_fabric_table", "displayText": "shared_table"}],
             "ws2": [{"entityType": "microsoft_fabric_table", "displayText": "shared_table"}],
         }
-        hints = _infer_cross_workspace_lineage(by_workspace, ["shared_table"])
+        hints = _infer_cross_workspace_lineage(by_workspace)
         assert len(hints) == 1
         assert hints[0]["table"] == "shared_table"
         assert hints[0]["from_workspace"] == "ws1"
@@ -265,7 +265,7 @@ class TestInferCrossWorkspaceLineage:
             "ws1": [{"entityType": "microsoft_fabric_lakehouse", "displayText": "lh"}],
             "ws2": [{"entityType": "microsoft_fabric_lakehouse", "displayText": "lh"}],
         }
-        hints = _infer_cross_workspace_lineage(by_workspace, [])
+        hints = _infer_cross_workspace_lineage(by_workspace)
         assert hints == []
 
     def test_three_workspaces_shared_table(self):
@@ -274,5 +274,5 @@ class TestInferCrossWorkspaceLineage:
             "ws2": [{"entityType": "microsoft_fabric_table", "displayText": "t"}],
             "ws3": [{"entityType": "microsoft_fabric_table", "displayText": "t"}],
         }
-        hints = _infer_cross_workspace_lineage(by_workspace, ["t"])
+        hints = _infer_cross_workspace_lineage(by_workspace)
         assert len(hints) == 2

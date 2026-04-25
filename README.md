@@ -1,10 +1,10 @@
 # fabric-drawio
 
-AI agent that reads **Azure DevOps epics** and your live **Microsoft Purview Data Map**, then generates one editable **`.drawio` medallion architecture diagram per epic**.
+AI agent that reads **Azure DevOps epics** and your live **Microsoft Purview Data Map**, then generates one editable **`.drawio` medallion architecture diagram** and a companion **`.md` tech spec** per epic.
 
 Supports **single-workspace** diagrams (one Fabric workspace) and **cross-workspace** diagrams (Bronze in one workspace feeding Silver/Gold in another).
 
-Built with Claude (`claude-opus-4-6`) using the Anthropic tool-use API and the [speckit](https://github.com/github/spec-kit) skills pattern for constraint enforcement. An OpenAI provider is also supported for teams using GPT models.
+Built with Claude (`claude-opus-4-6`) using the Anthropic tool-use API and the [speckit](https://github.com/github/spec-kit) skills pattern for constraint enforcement. An OpenAI provider is also supported for teams using GPT models. A built-in **demo mode** lets you run the full agent loop with fixture data — no Azure DevOps, Purview, or API keys needed.
 
 ---
 
@@ -18,17 +18,19 @@ Azure DevOps epics
        │
        ├─ devops/client.py    →  list epics, fetch details
        ├─ purview/client.py   →  list collections, query assets, infer lineage
-       └─ drawio/builder.py   →  generate .drawio XML
+       ├─ drawio/builder.py   →  generate .drawio XML
+       └─ techspec/builder.py →  generate .md tech spec
               │
               ▼
        output/{epic-id}-{slug}.drawio
+       output/{epic-id}-{slug}.md
 ```
 
 For each eligible epic Claude:
 1. Calls `list_purview_collections` to understand available workspace scopes
 2. Queries assets from one or more collections (single or cross-workspace mode)
 3. Reads the epic text and maps it to real Purview-catalogued assets
-4. Calls `generate_diagram` with a structured spec — the builder writes the `.drawio` file
+4. Calls `generate_diagram` with a structured spec — the builder writes the `.drawio` file and the tech spec `.md` in one shot
 
 ---
 
@@ -39,21 +41,28 @@ fabric-drawio/
 ├── agent/
 │   ├── main.py        # Agentic loop + CLI entry point
 │   ├── llm.py         # LLM provider abstraction (Anthropic + OpenAI)
-│   └── tools.py       # Tool registry + 6 tool schemas and handlers
+│   ├── tools.py       # Tool registry + 6 tool schemas and handlers
+│   └── demo.py        # Demo stubs: DevOpsClientStub, PurviewClientStub, ScriptedClient
 ├── devops/
 │   └── client.py      # Azure DevOps REST API (WIQL, work items)
 ├── purview/
 │   └── client.py      # Purview Data Map API (collections, assets, lineage)
 ├── drawio/
 │   └── builder.py     # Deterministic draw.io XML builder
+├── techspec/
+│   └── builder.py     # Markdown tech spec builder (pseudoalgorithm + tradeoffs)
 ├── skills/            # Speckit-pattern constraint skills (loaded at runtime)
 │   ├── medallion-architecture/SKILL.md
 │   ├── drawio-constraints/SKILL.md
 │   ├── purview-asset-governance/SKILL.md
 │   ├── workspace-scoping/SKILL.md
 │   └── devops-epic-mapping/SKILL.md
-├── tests/             # Pytest test suite (101 tests)
-├── output/            # Generated .drawio files (gitignored)
+├── examples/          # Fixture data used by demo mode
+│   ├── devops_epics.json
+│   ├── purview_collections.json
+│   └── purview_assets.json
+├── tests/             # Pytest test suite (147 tests)
+├── output/            # Generated files (gitignored)
 ├── pyproject.toml
 ├── CLAUDE.md
 └── .env.example
@@ -108,6 +117,23 @@ The service principal needs **Purview Data Reader** role on the target collectio
 
 ## Usage
 
+### Demo mode (no credentials needed)
+
+Try the full agent loop against bundled fixture data without any Azure DevOps, Purview, or LLM credentials:
+
+```bash
+uv run python -m agent.main --demo
+```
+
+Demo mode uses `examples/devops_epics.json`, `examples/purview_collections.json`, and `examples/purview_assets.json` as inputs, and drives the agentic loop with a scripted client instead of calling any external API. Outputs land in `./output/` as usual.
+
+The fixture epics cover three domains:
+- **Epic 42** — Sales Analytics Pipeline (cross-workspace: Bronze/Silver/Gold/HR)
+- **Epic 57** — HR Data Ingestion (single-workspace)
+- **Epic 103** — Public Transport Accessibility Heatmap (GTFS bus stops + address register → green/yellow/red proximity bands)
+
+### Live mode
+
 ```bash
 # All active epics — agent infers workspace scope from epic text
 uv run python -m agent.main --state Active
@@ -138,9 +164,22 @@ Starting Fabric Medallion Architecture Agent...
 
 Summary:
   Epic 42 — Sales Analytics Pipeline  → output/42-sales-analytics-pipeline.drawio  [cross-workspace]
+                                         output/42-sales-analytics-pipeline.md
   Epic 57 — HR Data Ingestion         → output/57-hr-data-ingestion.drawio          [single-workspace]
+                                         output/57-hr-data-ingestion.md
   Epic 61 — Marketing Dashboard       → SKIPPED (no data-engineering scope)
 ```
+
+---
+
+## Output files
+
+Each epic produces two files in `output/`:
+
+| File | Contents |
+|---|---|
+| `{id}-{slug}.drawio` | Editable draw.io diagram — open in [draw.io desktop](https://github.com/jgraph/drawio-desktop) or [app.diagrams.net](https://app.diagrams.net) |
+| `{id}-{slug}.md` | Tech spec — pseudoalgorithm (ordered implementation steps), architecture tradeoffs the engineer must resolve |
 
 ---
 
@@ -168,7 +207,7 @@ uv sync --dev                  # install with dev dependencies
 uv sync --extra openai --dev   # include OpenAI provider
 uv run ruff check .            # lint
 uv run ruff format .           # format
-uv run pytest                  # run tests (101 tests across all modules)
+uv run pytest                  # run tests (147 tests across all modules)
 ```
 
 ---
@@ -184,6 +223,9 @@ Real data platforms often split medallion layers across workspaces (e.g. a share
 **Why one file per epic?**
 Each epic represents an independent data product. Merging epics into one diagram hides ownership boundaries and makes diagrams unmaintainable as epics evolve.
 
+**Why a companion `.md` tech spec alongside every diagram?**
+The diagram answers "what does the architecture look like?" The tech spec answers "how do I build it and what decisions do I still need to make?" Both live next to each other so an engineer opening a diagram can immediately read the pseudoalgorithm and tradeoffs without switching tools. The tech spec is generated from the same structured spec the diagram builder uses, so they stay in sync.
+
 **Why deterministic XML generation?**
 The draw.io builder produces the same output for the same input, making diffs readable in PRs.
 
@@ -192,3 +234,6 @@ Skills are versioned alongside code, reviewable in PRs, and independently testab
 
 **Why a provider abstraction (`LLMClient`) instead of calling Anthropic directly?**
 Teams that already use OpenAI can pass `--llm codex` without touching the agent logic. The abstraction normalises message formats, tool call packaging, and tool schema conversion — `main.py` stays provider-agnostic.
+
+**Why a `ScriptedClient` for demo mode instead of mocking?**
+Mocks require knowing the expected call sequence in advance, which couples tests to implementation details. `ScriptedClient` implements the full `LLMClient` interface and drives the real agentic loop using fixture data — the same code path that runs in production. This makes demo mode a meaningful integration check, not a stub exercise.
