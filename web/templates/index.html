@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fabric Architecture Generator</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #0078d4;
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    header .logo { font-size: 1.6rem; line-height: 1; }
+    header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+    header p { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      padding: 16px;
+      gap: 16px;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.09);
+      padding: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #form-panel {
+      width: 296px;
+      min-width: 296px;
+      overflow-y: auto;
+      gap: 0;
+    }
+
+    #output-panel { flex: 1; gap: 12px; }
+
+    /* ── Form styles ── */
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+
+    .field { margin-bottom: 14px; }
+
+    label.field-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 5px;
+    }
+
+    input[type=number],
+    input[type=text],
+    select {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1.5px solid #d0d7de;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      background: #fafbfc;
+      color: #1a1a2e;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #0078d4;
+      box-shadow: 0 0 0 3px rgba(0,120,212,0.12);
+    }
+    input::placeholder { color: #bbb; }
+
+    .hint { font-size: 0.75rem; color: #999; margin-top: 4px; }
+
+    /* Workspace radio group */
+    .radio-group { display: flex; flex-direction: column; gap: 7px; }
+    .radio-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #444;
+    }
+    .radio-row input[type=radio] { width: auto; cursor: pointer; accent-color: #0078d4; }
+
+    .workspace-sub {
+      margin-top: 6px;
+      padding-left: 22px;
+      display: none;
+    }
+    .workspace-sub.visible { display: block; }
+
+    /* Demo toggle */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: #f0f7ff;
+      border: 1.5px solid #c0dbf5;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    .toggle-row input[type=checkbox] { width: auto; accent-color: #0078d4; cursor: pointer; }
+    .toggle-row .toggle-label { font-size: 0.85rem; font-weight: 600; color: #0078d4; }
+
+    .demo-note {
+      margin-top: 7px;
+      padding: 8px 10px;
+      background: #fff8e1;
+      border-left: 3px solid #f0a500;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      color: #7a5400;
+      display: none;
+    }
+    .demo-note.visible { display: block; }
+
+    /* Generate button */
+    #generate-btn {
+      width: 100%;
+      padding: 10px;
+      background: #0078d4;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      margin-top: 6px;
+    }
+    #generate-btn:hover:not(:disabled) { background: #006cc1; }
+    #generate-btn:active:not(:disabled) { transform: scale(0.98); }
+    #generate-btn:disabled { background: #b0c4d8; cursor: not-allowed; }
+
+    #status-bar {
+      font-size: 0.78rem;
+      color: #666;
+      min-height: 18px;
+      margin-top: 8px;
+      text-align: center;
+    }
+    #status-bar.running { color: #0078d4; }
+    #status-bar.done { color: #2d8a4e; font-weight: 600; }
+    #status-bar.error { color: #c0392b; }
+
+    /* ── Output panel ── */
+    #progress-log {
+      flex: 0 0 170px;
+      overflow-y: auto;
+      background: #1a1b2e;
+      color: #9cdca6;
+      border-radius: 7px;
+      padding: 12px 14px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.8rem;
+      line-height: 1.55;
+    }
+    .log-line { padding: 1px 0; word-break: break-word; }
+    .log-line.tool { color: #79c0ff; }
+    .log-line.error { color: #ff7b7b; }
+    .log-line.done { color: #ffd18a; font-weight: 600; }
+
+    /* Results area */
+    .results-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* File cards */
+    .file-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .file-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      background: #f0f7ff;
+      border: 1.5px solid #b8d8f5;
+      border-radius: 8px;
+    }
+    .file-card .card-icon { font-size: 1.2rem; }
+    .file-card .card-info .card-label { font-size: 0.72rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .file-card .card-info .card-name { font-size: 0.85rem; font-weight: 600; color: #1a1a2e; margin: 2px 0; }
+    .file-card .card-info a {
+      font-size: 0.78rem;
+      color: #0078d4;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .file-card .card-info a:hover { text-decoration: underline; }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      border-bottom: 2px solid #e4e9f0;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 7px 16px;
+      font-size: 0.83rem;
+      cursor: pointer;
+      border-radius: 5px 5px 0 0;
+      color: #777;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .tab-btn:hover { color: #0078d4; }
+    .tab-btn.active { color: #0078d4; border-bottom-color: #0078d4; font-weight: 700; }
+
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    /* Markdown preview */
+    #md-preview {
+      padding: 20px 24px;
+      font-size: 0.9rem;
+      line-height: 1.75;
+      color: #24292f;
+    }
+    #md-preview h1 { font-size: 1.5rem; border-bottom: 1px solid #eaeef2; padding-bottom: 8px; margin-bottom: 16px; margin-top: 4px; }
+    #md-preview h2 { font-size: 1.15rem; margin: 24px 0 10px; color: #0078d4; }
+    #md-preview h3 { font-size: 0.95rem; margin: 18px 0 8px; color: #333; }
+    #md-preview p { margin-bottom: 12px; }
+    #md-preview ul, #md-preview ol { padding-left: 24px; margin-bottom: 12px; }
+    #md-preview li { margin-bottom: 5px; }
+    #md-preview code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; font-size: 0.83em; font-family: 'Cascadia Code', 'Fira Code', monospace; }
+    #md-preview pre { background: #f6f8fa; padding: 16px; border-radius: 7px; overflow-x: auto; margin-bottom: 12px; border: 1px solid #e4e9f0; }
+    #md-preview pre code { background: none; padding: 0; font-size: 0.82em; }
+    #md-preview blockquote { border-left: 3px solid #0078d4; padding-left: 14px; color: #6a737d; margin-bottom: 12px; }
+    #md-preview table { border-collapse: collapse; width: 100%; margin-bottom: 16px; font-size: 0.87rem; }
+    #md-preview th, #md-preview td { border: 1px solid #d8dde6; padding: 8px 12px; }
+    #md-preview th { background: #f0f7ff; font-weight: 700; }
+    #md-preview tr:nth-child(even) td { background: #fafbfc; }
+    #md-preview strong { color: #1a1a2e; }
+
+    /* Raw markdown */
+    #md-raw {
+      padding: 20px 24px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      color: #374151;
+    }
+
+    /* Empty state */
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: #bbb;
+      font-size: 0.9rem;
+    }
+
+    .hidden { display: none !important; }
+
+    /* Multi-file selector (for demo mode with 3 epics) */
+    .file-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .file-selector-btn {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      background: #f0f2f5;
+      border: 1.5px solid #d0d7de;
+      border-radius: 5px;
+      cursor: pointer;
+      color: #444;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .file-selector-btn:hover { border-color: #0078d4; color: #0078d4; }
+    .file-selector-btn.active { background: #0078d4; border-color: #0078d4; color: #fff; }
+    .divider { height: 1px; background: #e8ecf0; margin: 14px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏗</div>
+  <div>
+    <h1>Fabric Architecture Generator</h1>
+    <p>Generate Medallion Architecture diagrams and tech specs from Azure DevOps epics</p>
+  </div>
+</header>
+
+<main>
+  <!-- ── Form panel ── -->
+  <div class="panel" id="form-panel">
+    <div class="section-title">Configuration</div>
+
+    <!-- Demo mode -->
+    <div class="field">
+      <label class="toggle-row" for="demo-mode">
+        <input type="checkbox" id="demo-mode" />
+        <span class="toggle-label">Demo mode</span>
+      </label>
+      <p class="demo-note" id="demo-note">
+        Uses fixture epics from <code>examples/</code>. No Azure DevOps or Purview credentials needed — only <code>ANTHROPIC_API_KEY</code>.
+      </p>
+    </div>
+
+    <!-- Epic ID -->
+    <div class="field" id="epic-id-field">
+      <label class="field-label" for="epic-id">Epic ID <span style="color:#c0392b">*</span></label>
+      <input type="number" id="epic-id" placeholder="e.g. 12345" min="1" />
+      <p class="hint">Azure DevOps work-item ID</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Workspace scope -->
+    <div class="field">
+      <label class="field-label">Workspace Scope</label>
+      <div class="radio-group">
+        <label class="radio-row">
+          <input type="radio" name="scope" value="auto" checked />
+          <span><strong>Auto</strong> — infer from epic text</span>
+        </label>
+        <label class="radio-row">
+          <input type="radio" name="scope" value="single" />
+          <span><strong>Single</strong> workspace</span>
+        </label>
+        <div class="workspace-sub" id="single-input">
+          <input type="text" id="workspace-id" placeholder="Purview collection ID" />
+        </div>
+        <label class="radio-row">
+          <input type="radio" name="scope" value="cross" />
+          <span><strong>Cross-workspace</strong></span>
+        </label>
+        <div class="workspace-sub" id="cross-input">
+          <input type="text" id="cross-workspace-ids" placeholder="id1, id2, id3 (comma-separated)" />
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- LLM -->
+    <div class="field" id="llm-field">
+      <label class="field-label" for="llm-select">LLM Provider</label>
+      <select id="llm-select">
+        <option value="claude">Claude (Anthropic)</option>
+        <option value="codex">Codex (OpenAI)</option>
+      </select>
+    </div>
+
+    <!-- State filter (hidden in epic-id mode, shown when no ID given) -->
+    <div class="field" id="state-field">
+      <label class="field-label" for="state-input">State Filter</label>
+      <input type="text" id="state-input" value="Active" placeholder="Active" />
+      <p class="hint">Used only when no Epic ID is entered — processes all matching epics</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <button id="generate-btn" onclick="startGeneration()">⚡ Generate</button>
+    <div id="status-bar"></div>
+  </div>
+
+  <!-- ── Output panel ── -->
+  <div class="panel" id="output-panel">
+    <div class="section-title">Output</div>
+
+    <!-- Progress log -->
+    <div id="progress-log">
+      <div class="log-line">Ready — configure options and click Generate.</div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-area" id="results-area">
+      <!-- File cards -->
+      <div class="file-cards" id="file-cards"></div>
+
+      <!-- Multi-file selector (when multiple .md files exist) -->
+      <div class="file-selector hidden" id="file-selector"></div>
+
+      <!-- Tabs + content -->
+      <div id="tabs-section" class="hidden" style="display:none;flex:1;flex-direction:column;min-height:0;">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('preview')">Markdown Preview</button>
+          <button class="tab-btn" onclick="switchTab('raw')">Raw Markdown</button>
+        </div>
+        <div class="tab-content">
+          <div id="md-preview"></div>
+          <div id="md-raw" class="hidden"></div>
+        </div>
+      </div>
+
+      <div id="empty-state" class="empty-state">Generated diagrams and tech specs will appear here.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ── State ──
+  let evtSource = null;
+  let allMdFiles = [];    // [{name, content}, ...]
+  let selectedMdIndex = 0;
+
+  // ── Startup ──
+  document.getElementById('demo-mode').addEventListener('change', onDemoToggle);
+  document.querySelectorAll('input[name=scope]').forEach(r => r.addEventListener('change', updateScopeFields));
+
+  function onDemoToggle() {
+    const demo = document.getElementById('demo-mode').checked;
+    document.getElementById('epic-id-field').style.display = demo ? 'none' : '';
+    document.getElementById('demo-note').classList.toggle('visible', demo);
+    document.getElementById('llm-field').style.opacity = demo ? '0.5' : '1';
+    document.getElementById('state-field').style.display = demo ? 'none' : '';
+  }
+
+  function updateScopeFields() {
+    const scope = document.querySelector('input[name=scope]:checked').value;
+    document.getElementById('single-input').classList.toggle('visible', scope === 'single');
+    document.getElementById('cross-input').classList.toggle('visible', scope === 'cross');
+  }
+
+  // ── Tabs ──
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+    document.getElementById('md-preview').classList.toggle('hidden', tab !== 'preview');
+    document.getElementById('md-raw').classList.toggle('hidden', tab !== 'raw');
+  }
+
+  // ── Log helpers ──
+  function appendLog(text, cls) {
+    const log = document.getElementById('progress-log');
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (cls || '');
+    line.textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function clearLog() {
+    document.getElementById('progress-log').innerHTML = '';
+  }
+
+  function setStatus(text, cls) {
+    const bar = document.getElementById('status-bar');
+    bar.textContent = text;
+    bar.className = cls || '';
+  }
+
+  // ── Generation ──
+  function startGeneration() {
+    if (evtSource) { evtSource.close(); evtSource = null; }
+
+    const demo = document.getElementById('demo-mode').checked;
+    const epicId = document.getElementById('epic-id').value.trim();
+    const scope = document.querySelector('input[name=scope]:checked').value;
+    const llm = document.getElementById('llm-select').value;
+    const state = document.getElementById('state-input').value.trim();
+
+    if (!demo && !epicId) {
+      alert('Please enter an Epic ID, or enable Demo mode.');
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (!demo && epicId) params.set('epic_id', epicId);
+    params.set('demo', demo);
+    params.set('llm', llm);
+    if (state && !demo) params.set('state', state);
+
+    if (scope === 'single') {
+      const wsId = document.getElementById('workspace-id').value.trim();
+      if (wsId) params.set('workspace', wsId);
+    } else if (scope === 'cross') {
+      const crossIds = document.getElementById('cross-workspace-ids').value.trim();
+      if (crossIds) params.set('cross_workspaces', crossIds);
+    }
+
+    // Reset UI
+    clearLog();
+    document.getElementById('file-cards').innerHTML = '';
+    document.getElementById('file-selector').innerHTML = '';
+    document.getElementById('file-selector').classList.add('hidden');
+
+    const tabsEl = document.getElementById('tabs-section');
+    tabsEl.style.display = 'none';
+    tabsEl.classList.add('hidden');
+
+    document.getElementById('md-preview').innerHTML = '';
+    document.getElementById('md-raw').textContent = '';
+    document.getElementById('empty-state').classList.remove('hidden');
+    allMdFiles = [];
+    selectedMdIndex = 0;
+
+    document.getElementById('generate-btn').disabled = true;
+    setStatus('Running agent…', 'running');
+    appendLog('Starting Fabric Architecture Agent…');
+
+    evtSource = new EventSource('/generate?' + params.toString());
+
+    evtSource.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === 'ping') return;
+
+      if (data.type === 'log') {
+        const cls = data.text.startsWith('  ->') ? 'tool' : '';
+        appendLog(data.text, cls);
+      } else if (data.type === 'error') {
+        appendLog('ERROR: ' + data.text, 'error');
+        setStatus('Failed.', 'error');
+        document.getElementById('generate-btn').disabled = false;
+        evtSource.close(); evtSource = null;
+      } else if (data.type === 'complete') {
+        evtSource.close(); evtSource = null;
+        document.getElementById('generate-btn').disabled = false;
+        setStatus('Done!', 'done');
+        appendLog('Generation complete!', 'done');
+        showResults(data);
+      }
+    };
+
+    evtSource.onerror = () => {
+      appendLog('Connection lost or agent failed.', 'error');
+      setStatus('Error.', 'error');
+      document.getElementById('generate-btn').disabled = false;
+      if (evtSource) { evtSource.close(); evtSource = null; }
+    };
+  }
+
+  // ── Results ──
+  function showResults(data) {
+    const files = data.files || [];
+    if (!files.length) return;
+
+    document.getElementById('empty-state').classList.add('hidden');
+
+    // Build file cards
+    const cards = document.getElementById('file-cards');
+    files.forEach(f => {
+      const isDrawio = f.ext === '.drawio';
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      card.innerHTML = `
+        <span class="card-icon">${isDrawio ? '📐' : '📄'}</span>
+        <div class="card-info">
+          <div class="card-label">${isDrawio ? 'draw.io Diagram' : 'Tech Spec'}</div>
+          <div class="card-name">${escHtml(f.name)}</div>
+          <a href="/output/${encodeURIComponent(f.name)}" download="${escHtml(f.name)}">↓ Download</a>
+        </div>`;
+      cards.appendChild(card);
+
+      if (f.ext === '.md' && f.content) {
+        allMdFiles.push({ name: f.name, content: f.content });
+      }
+    });
+
+    if (!allMdFiles.length) return;
+
+    // Multi-file selector when there's more than one .md
+    if (allMdFiles.length > 1) {
+      const selector = document.getElementById('file-selector');
+      selector.classList.remove('hidden');
+      allMdFiles.forEach((mf, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'file-selector-btn' + (idx === 0 ? ' active' : '');
+        btn.textContent = mf.name;
+        btn.onclick = () => selectMdFile(idx);
+        selector.appendChild(btn);
+      });
+    }
+
+    // Show tabs section
+    const tabsEl = document.getElementById('tabs-section');
+    tabsEl.style.display = 'flex';
+    tabsEl.classList.remove('hidden');
+
+    renderMd(0);
+  }
+
+  function selectMdFile(idx) {
+    selectedMdIndex = idx;
+    document.querySelectorAll('.file-selector-btn').forEach((b, i) => {
+      b.classList.toggle('active', i === idx);
+    });
+    renderMd(idx);
+  }
+
+  function renderMd(idx) {
+    const mf = allMdFiles[idx];
+    if (!mf) return;
+    document.getElementById('md-preview').innerHTML = marked.parse(mf.content);
+    document.getElementById('md-raw').textContent = mf.content;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

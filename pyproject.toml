@@ -11,9 +11,11 @@ dependencies = [
 
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
+web = ["fastapi>=0.111.0", "uvicorn[standard]>=0.29.0"]
 
 [project.scripts]
 fabric-agent = "agent.main:main"
+fabric-web = "web.app:start"
 
 [dependency-groups]
 dev = [
@@ -33,7 +35,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.hatch.build.targets.wheel]
-packages = ["agent", "devops", "drawio", "purview"]
+packages = ["agent", "devops", "drawio", "purview", "techspec", "web"]
 
 [build-system]
 requires = ["hatchling"]

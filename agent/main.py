@@ -96,6 +96,7 @@ def run(
     llm_client: LLMClient | None = None,
     devops: DevOpsClient = None,
     purview: PurviewClient = None,
+    epic_id: int | None = None,
 ) -> None:
     if llm_client is None:
         llm_client = AnthropicClient()
@@ -112,10 +113,17 @@ def run(
 
     registry = build_registry(devops, purview, output_dir)
 
-    parts = ["Generate medallion architecture diagrams for all active epics."]
+    if epic_id is not None:
+        parts = [
+            f"Generate the medallion architecture diagram for Azure DevOps epic ID {epic_id} only.",
+            f"IMPORTANT: Skip step 1 (list_devops_epics). Call get_epic_details({epic_id}) directly.",  # noqa: E501
+            "Then follow steps 2-5 from your instructions for this single epic.",
+        ]
+    else:
+        parts = ["Generate medallion architecture diagrams for all active epics."]
     if area_path:
         parts.append(f"Filter epics by area path: {area_path}.")
-    if state:
+    if state and epic_id is None:
         parts.append(f"Filter epics by state: {state}.")
     if workspace:
         parts.append(
