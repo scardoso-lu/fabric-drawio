@@ -62,7 +62,13 @@ def build_tech_spec_md(spec: dict) -> str:
             lines.append(f"| {layer_name} | {asset_list} |")
     lines.append("")
 
-    lines += ["## Implementation Pseudoalgorithm", ""]
+    lines += [
+        "## Implementation Pseudoalgorithm",
+        "",
+        "> **KISS:** Start with the simplest step that works."
+        " Add complexity only when a real constraint requires it.",
+        "",
+    ]
     for i, step in enumerate(spec.get("pseudoalgorithm", []), 1):
         lines.append(f"{i}. {step}")
     lines.append("")
@@ -71,7 +77,8 @@ def build_tech_spec_md(spec: dict) -> str:
         "## Tradeoffs",
         "",
         "> The following decisions are left to the engineer.",
-        "> Each option carries different cost, complexity, and governance implications.",
+        "> **YAGNI:** Start with the simpler option."
+        " Only choose the complex option when the current epic gives a concrete reason.",
         "",
     ]
     for t in spec.get("tradeoffs", []):

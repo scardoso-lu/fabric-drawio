@@ -42,12 +42,14 @@ Medallion Architecture (Bronze / Silver / Gold). Your job each run:
 5. Call generate_diagram for each in-scope epic. Set workspace_mode to "single" or "cross".
    Also populate:
    - pseudoalgorithm: ordered implementation steps (Bronze ingestion → Silver cleansing →
-     Gold transformations → Serving publication). Be concrete: name the assets, data formats,
-     and key transformation logic inferred from the epic description.
+     Gold transformations → Serving publication). One sentence per step: name the asset and
+     the action. Do not specify data types, column names, or NULL-handling logic — those
+     belong in the code. Prefer the simplest approach at each step (KISS).
    - tradeoffs: a list of architecture and cost decisions the engineer must make themselves.
-     Each tradeoff must have a topic and a description that explains the options and their
-     implications (e.g. compute cost, governance, complexity, latency). Do not recommend a
-     single answer — present the options and let the engineer decide.
+     Each tradeoff must have a topic and a description. For each option clearly identify
+     which is simpler and recommend starting with it (YAGNI) — only escalate to the complex
+     option when the epic provides a concrete, current reason to do so. Keep each option
+     description to at most two sentences.
    - unclear_steps: every step or detail that is ambiguous, missing, or underdefined in the
      epic text or Purview catalogue. For each item provide:
        • step: a short label for the gap (e.g. "Source schema unknown")

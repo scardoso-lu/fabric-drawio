@@ -92,20 +92,11 @@ class PurviewClientStub:
 _SCRIPTED_TECH_SPECS: dict[int, tuple[list[str], list[dict], list[dict]]] = {
     101: (
         [
-            "Bronze — SQL_Server_Ingest_Pipeline: connect to AdventureWorks via Fabric Data Pipeline "
-            "JDBC source; extract orders and products tables with a full-load watermark on modified_date; "
-            "land as Parquet in bronze_sales_lakehouse (raw_orders, raw_products).",
-            "Bronze — SharePoint_Ingest_Pipeline: use the SharePoint Online connector to read the "
-            "regional targets Excel file; land as raw_regional_targets in bronze_sales_lakehouse.",
-            "Silver — cleanse_orders_notebook: cast order_date to DATE, revenue to DECIMAL(18,2), "
-            "drop duplicates on order_id, enforce NOT NULL on customer_id; write to silver_sales_lakehouse.",
-            "Silver — cleanse_products_notebook: normalise product_category to a controlled vocabulary, "
-            "fill null product_subcategory with 'Unknown'; write to silver_sales_lakehouse.",
-            "Gold — aggregate_sales_kpis_notebook: JOIN orders × products × regional_targets on "
-            "region_code and month; compute monthly_revenue = SUM(revenue), units_sold = COUNT(*), "
-            "target_attainment = monthly_revenue / monthly_target; write to gold_sales_lakehouse.",
-            "Serving — publish Sales Semantic Model as Direct Lake dataset over gold_sales_lakehouse; "
-            "build Sales Dashboard report with revenue trend, units-sold bar chart, and attainment gauge.",
+            "Bronze: full-load ingest orders and products from AdventureWorks into bronze_sales_lakehouse via SQL_Server_Ingest_Pipeline.",
+            "Bronze: copy regional targets Excel from SharePoint into bronze_sales_lakehouse via SharePoint_Ingest_Pipeline.",
+            "Silver: cleanse and deduplicate orders and products; write typed Delta tables to silver_sales_lakehouse.",
+            "Gold: join orders × products × targets; compute revenue, units sold, and target attainment; write to gold_sales_lakehouse.",
+            "Serving: publish a Direct Lake Semantic Model over gold_sales_lakehouse; build a Sales Dashboard report.",
         ],
         [
             {
@@ -171,19 +162,11 @@ _SCRIPTED_TECH_SPECS: dict[int, tuple[list[str], list[dict], list[dict]]] = {
     ),
     102: (
         [
-            "Bronze — SAP_HR_Ingest_Pipeline: pick up the daily SuccessFactors CSV drop from the "
-            "SFTP landing zone; validate file presence and row count; load into bronze_hr_lakehouse "
-            "as a raw Delta table with ingestion_date partition.",
-            "Silver — cleanse_hr_notebook: parse hire_date and termination_date as ISO-8601 DATE; "
-            "normalise job_grade to a canonical code list; fill null cost_centre with department default; "
-            "deduplicate on employee_id keeping the latest record; write to silver_hr_lakehouse.",
-            "Gold — aggregate_hr_kpis_notebook: GROUP BY department, calendar_month to compute "
-            "headcount = COUNT(active employees); rolling_attrition_12m = "
-            "terminations_in_window / AVG(headcount_in_window); write to gold_hr_lakehouse.",
-            "Gold — load HR_Analytics_Warehouse: use COPY INTO to sync gold Delta tables into the "
-            "Fabric Warehouse so the People Analytics team can query via SQL endpoint.",
-            "Serving — publish HR Semantic Model as Direct Lake dataset; build HR Headcount Report "
-            "with headcount-by-department bar chart and 12-month attrition trend line.",
+            "Bronze: copy the daily SAP SuccessFactors CSV from SFTP into bronze_hr_lakehouse via SAP_HR_Ingest_Pipeline.",
+            "Silver: parse dates, normalise job_grade, deduplicate on employee_id; write to silver_hr_lakehouse.",
+            "Gold: aggregate headcount and rolling attrition by department; write to gold_hr_lakehouse.",
+            "Gold: sync gold Delta tables into HR_Analytics_Warehouse for SQL access.",
+            "Serving: publish a Direct Lake Semantic Model over gold_hr_lakehouse; build an HR Headcount Report.",
         ],
         [
             {
@@ -247,29 +230,12 @@ _SCRIPTED_TECH_SPECS: dict[int, tuple[list[str], list[dict], list[dict]]] = {
     ),
     103: (
         [
-            "Bronze — data_lu_bus_stops_pipeline: HTTP GET the GTFS static feed ZIP from "
-            "data.lu (transport/gtfs); extract stops.txt; parse stop_id, stop_name, stop_lat, "
-            "stop_lon; land as raw_bus_stops Delta table in bronze_mobility_lakehouse. "
-            "Schedule daily (GTFS feed is versioned on publish date).",
-            "Bronze — data_lu_residences_pipeline: HTTP GET the address register GeoJSON from "
-            "data.lu (addresses/adresses-luxemburg); parse id, street, postcode, commune, "
-            "latitude, longitude; land as raw_residences Delta table in bronze_mobility_lakehouse. "
-            "Schedule weekly (address register is stable).",
-            "Silver — cleanse_bus_stops_notebook: cast stop_lat/stop_lon to DOUBLE, assert "
-            "within Luxembourg bounding box (lat 49.44–50.18, lon 5.73–6.53), drop duplicates "
-            "on stop_id, write bus_stops to silver_mobility_lakehouse.",
-            "Silver — cleanse_residences_notebook: cast latitude/longitude to DOUBLE, drop "
-            "records with null coordinates or outside bounding box, normalise commune names to "
-            "official LAU codes, write residences to silver_mobility_lakehouse.",
-            "Gold — compute_accessibility_notebook: for each residence r, compute "
-            "nearest_stop_distance_km = MIN over all stops s of haversine(r.lat, r.lon, s.lat, s.lon); "
-            "add accessibility_band: 'green' if dist < 1, 'yellow' if dist < 2, else 'red'; "
-            "write transport_accessibility to gold_mobility_lakehouse.",
-            "Gold — load Mobility_Analytics_Warehouse: COPY INTO from gold Delta table for ad-hoc "
-            "SQL analysis by the mobility team.",
-            "Serving — publish Transport Accessibility Semantic Model as Direct Lake dataset over "
-            "transport_accessibility; build Transport Accessibility Heatmap report using a Power BI "
-            "filled-map visual coloured by accessibility_band.",
+            "Bronze: HTTP-fetch GTFS stops.txt from data.lu and land as raw_bus_stops in bronze_mobility_lakehouse.",
+            "Bronze: HTTP-fetch address register GeoJSON from data.lu and land as raw_residences in bronze_mobility_lakehouse.",
+            "Silver: validate coordinates and deduplicate bus stops and residences; write to silver_mobility_lakehouse.",
+            "Gold: for each residence compute nearest bus stop distance (Haversine); classify as green / yellow / red; write to gold_mobility_lakehouse.",
+            "Gold: sync transport_accessibility into Mobility_Analytics_Warehouse for ad-hoc SQL.",
+            "Serving: publish a Direct Lake Semantic Model; build a Transport Accessibility filled-map report.",
         ],
         [
             {
